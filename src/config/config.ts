@@ -1,7 +1,13 @@
 export const config = {
   port: process.env.PORT || 3000,
-  baseURL: ((process.env.NODE_ENV || "DEV") == "DEV") ? "https://dev-api.go-potion.com" : "https://api.go-potion.com",
-  frontURL: ((process.env.NODE_ENV || "DEV") == "DEV") ? "https://dev.go-potion.com" : "https://go-potion.com",
+  baseURL:
+    (process.env.NODE_ENV || "DEV") == "DEV"
+      ? "https://potion-dev-api.vercel.app"
+      : "https://api.potionapp.com",
+  frontURL:
+    (process.env.NODE_ENV || "DEV") == "DEV"
+      ? "https://dev.potionapp.com"
+      : "https://my.potionapp.com",
   jwtSecret: process.env.JWT_SECRET as string,
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
