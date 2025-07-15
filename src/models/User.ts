@@ -52,6 +52,7 @@ const userSchema = new mongoose.Schema(
     },
     isUserDeleted: { type: Boolean, default: false },
     profilePicture: {
+      fileDisplayName: { type: String },
       fileName: { type: String },
       fileType: { type: String },
     },

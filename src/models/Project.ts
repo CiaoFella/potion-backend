@@ -24,6 +24,7 @@ const projectSchema = new mongoose.Schema<IProject>(
     ],
     files: [
       {
+        fileDisplayName: { type: String },
         fileName: { type: String },
         fileType: { type: String },
       },

@@ -7,6 +7,7 @@ const FileSchema = new mongoose.Schema(
       ref: "Project",
     },
     file: {
+      fileDisplayName: { type: String },
       fileName: { type: String },
       fileType: { type: String },
     },
