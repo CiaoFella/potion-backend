@@ -3,10 +3,9 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "build": "tsc",
     "start": "node dist/app.js",
-    "watch": "tsc --watch",
-    "dev": "nodemon src/app.ts"
+    "dev": "nodemon src/app.ts",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
