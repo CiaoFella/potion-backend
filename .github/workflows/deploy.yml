@@ -34,7 +34,7 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: Potion Backend
+          application_name: potion-prod
           environment_name: potion-dev-env
           region: us-east-1
           version_label: ${{ github.run_id }}-${{ github.sha }}
@@ -67,8 +67,8 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: Potion Backend
-          environment_name: potion-prod-env
+          application_name: potion-prod
+          environment_name: Potion-prod-env
           region: us-east-1
           version_label: ${{ github.run_id }}-${{ github.sha }}
           deployment_package: deploy.zip
