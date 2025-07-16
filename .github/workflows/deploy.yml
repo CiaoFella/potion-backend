@@ -37,8 +37,9 @@ jobs:
           application_name: Potion Backend
           environment_name: potion-dev-env
           region: us-east-1
-          version_label: ${{ github.sha }}
+          version_label: ${{ github.run_id }}-${{ github.sha }}
           deployment_package: deploy.zip
+          use_existing_version_if_available: true
 
   deploy-prod:
     if: github.ref == 'refs/heads/prod'
@@ -69,5 +70,6 @@ jobs:
           application_name: Potion Backend
           environment_name: potion-prod-env
           region: us-east-1
-          version_label: ${{ github.sha }}
+          version_label: ${{ github.run_id }}-${{ github.sha }}
           deployment_package: deploy.zip
+          use_existing_version_if_available: true
