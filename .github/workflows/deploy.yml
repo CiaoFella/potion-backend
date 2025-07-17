@@ -34,12 +34,12 @@ jobs:
           key: ${{ secrets.DEV_SSH_KEY }}
           port: 22
           script: |
-            cd /var/www/potionbk
+            cd /home/ubuntu/potion-backend
             git fetch origin
             git reset --hard origin/main
             npm install
             npm run build
-            pm2 restart potion-api || pm2 start ecosystem.config.js
+            pm2 restart potion-api || pm2 start ecosystem.config.js --env development
             pm2 save
 
   deploy-prod:
@@ -68,10 +68,10 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           port: 22
           script: |
-            cd /var/www/potionbk
+            cd /home/ubuntu/potion-backend
             git fetch origin
             git reset --hard origin/prod
             npm install
             npm run build
-            pm2 restart potion-api || pm2 start ecosystem.config.js
+            pm2 restart potion-api || pm2 start ecosystem.config.js --env production
             pm2 save
