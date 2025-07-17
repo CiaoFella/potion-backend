@@ -1,4 +1,4 @@
-name: Deploy to Elastic Beanstalk
+name: Deploy to AWS
 
 on:
   workflow_dispatch:
@@ -26,20 +26,21 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Generate deployment package
-        run: zip -r deploy.zip . -x "node_modules/*" ".git/*" "*.DS_Store" "npm-debug.log" "yarn-error.log" "log/*"
-
-      - name: Deploy to Elastic Beanstalk (DEV)
-        uses: einaregilsson/beanstalk-deploy@v21
+      - name: Deploy to Dev EC2
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: potion-prod
-          environment_name: potion-dev-env
-          region: us-east-1
-          version_label: ${{ github.run_id }}-${{ github.sha }}
-          deployment_package: deploy.zip
-          use_existing_version_if_available: true
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USERNAME }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          port: 22
+          script: |
+            cd /var/www/potionbk
+            git fetch origin
+            git reset --hard origin/main
+            npm install
+            npm run build
+            pm2 restart potion-api || pm2 start ecosystem.config.js
+            pm2 save
 
   deploy-prod:
     if: github.ref == 'refs/heads/prod'
@@ -59,17 +60,18 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Generate deployment package
-        run: zip -r deploy.zip . -x "node_modules/*" ".git/*" "*.DS_Store" "npm-debug.log" "yarn-error.log" "log/*"
-
-      - name: Deploy to Elastic Beanstalk (PROD)
-        uses: einaregilsson/beanstalk-deploy@v21
+      - name: Deploy to Prod EC2
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: potion-prod
-          environment_name: Potion-prod-env
-          region: us-east-1
-          version_label: ${{ github.run_id }}-${{ github.sha }}
-          deployment_package: deploy.zip
-          use_existing_version_if_available: true
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: 22
+          script: |
+            cd /var/www/potionbk
+            git fetch origin
+            git reset --hard origin/prod
+            npm install
+            npm run build
+            pm2 restart potion-api || pm2 start ecosystem.config.js
+            pm2 save
