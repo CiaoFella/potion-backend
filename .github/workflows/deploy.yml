@@ -18,16 +18,19 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "18"
+
+      - name: Install Yarn
+        run: npm install -g yarn
 
       - name: Install dependencies
-        run: npm install
+        run: yarn install
 
       - name: Build
-        run: npm run build
+        run: yarn run build
 
       - name: Generate deployment package
-        run: zip -r deploy.zip . -x "node_modules/*" ".git/*"
+        run: zip -r deploy.zip . -x "node_modules/*" ".git/*" "*.DS_Store" "npm-debug.log" "yarn-error.log" "log/*"
 
       - name: Deploy to Elastic Beanstalk (DEV)
         uses: einaregilsson/beanstalk-deploy@v21
@@ -51,16 +54,19 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "18"
+
+      - name: Install Yarn
+        run: npm install -g yarn
 
       - name: Install dependencies
-        run: npm install
+        run: yarn install
 
       - name: Build
-        run: npm run build
+        run: yarn run build
 
       - name: Generate deployment package
-        run: zip -r deploy.zip . -x "node_modules/*" ".git/*"
+        run: zip -r deploy.zip . -x "node_modules/*" ".git/*" "*.DS_Store" "npm-debug.log" "yarn-error.log" "log/*"
 
       - name: Deploy to Elastic Beanstalk (PROD)
         uses: einaregilsson/beanstalk-deploy@v21

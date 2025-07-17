@@ -2,6 +2,9 @@
   "name": "potionbk",
   "version": "1.0.0",
   "main": "app.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "start": "node dist/app.js",
     "dev": "nodemon src/app.ts",
