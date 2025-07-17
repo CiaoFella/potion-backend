@@ -2,7 +2,7 @@ export const config = {
   port: process.env.PORT || 3000,
   baseURL:
     (process.env.NODE_ENV || "DEV") == "DEV"
-      ? "https://potion-dev-api.vercel.app"
+      ? "https://dev-api.potionapp.com"
       : "https://api.potionapp.com",
   frontURL:
     (process.env.NODE_ENV || "DEV") == "DEV"

@@ -74,12 +74,15 @@ let origin =
     ? [
         "https://potion-dev-api.vercel.app",
         "https://dev.go-potion.com",
+        "https://dev.potionapp.com",
+        "https://dev-api.potionapp.com",
         "https://backlog.go-potion.com",
         "https://potion-dev-admin.vercel.app",
         "https://potion-web-git-finhub-champ3oys-projects.vercel.app",
       ]
     : [
         "https://potionapp.com",
+        "https://my.potionapp.com",
         "https://api.potionapp.com",
         "https://potion-admin.vercel.app",
         "https://potion-web-git-finhub-champ3oys-projects.vercel.app",
