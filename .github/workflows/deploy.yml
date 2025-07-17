@@ -18,16 +18,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
-
-      - name: Install Yarn
-        run: npm install -g yarn
+          node-version: "22"
 
       - name: Install dependencies
-        run: yarn install
+        run: npm install
 
       - name: Build
-        run: yarn run build
+        run: npm run build
 
       - name: Generate deployment package
         run: zip -r deploy.zip . -x "node_modules/*" ".git/*" "*.DS_Store" "npm-debug.log" "yarn-error.log" "log/*"
@@ -54,16 +51,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
-
-      - name: Install Yarn
-        run: npm install -g yarn
+          node-version: "22"
 
       - name: Install dependencies
-        run: yarn install
+        run: npm install
 
       - name: Build
-        run: yarn run build
+        run: npm run build
 
       - name: Generate deployment package
         run: zip -r deploy.zip . -x "node_modules/*" ".git/*" "*.DS_Store" "npm-debug.log" "yarn-error.log" "log/*"
