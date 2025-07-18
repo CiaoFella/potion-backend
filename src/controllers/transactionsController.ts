@@ -147,17 +147,15 @@ export const transactionController = {
   },
 
   async deleteTransactionsByBankAccount(req: any, res: any) {
+    const { bankAccountId } = req.params;
+    if (!bankAccountId)
+      return res.status(400).json({ error: "Bank account ID is required" });
+
     try {
       // Use X-User-ID header if available
       const userId =
         req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[deleteTransactionsByBankAccount] Using userId:", userId);
-
-      const { bankAccountId } = req.params;
-
-      if (!bankAccountId) {
-        return res.status(400).json({ error: "Bank account ID is required" });
-      }
 
       // Delete all transactions associated with the bank account for this user
       const result = await Transaction.deleteMany({
@@ -201,8 +199,6 @@ export const transactionController = {
         $or: [
           { bankAccount: { $nin: validBankAccountIds } },
           { bankAccount: { $exists: false } },
-          { bankAccount: null },
-          { bankAccount: "" },
         ],
       })
         .populate("invoice", "invoiceNumber total status")
@@ -247,8 +243,6 @@ export const transactionController = {
         $or: [
           { bankAccount: { $nin: validBankAccountIds } },
           { bankAccount: { $exists: false } },
-          { bankAccount: null },
-          { bankAccount: "" },
         ],
       });
 
