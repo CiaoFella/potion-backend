@@ -14,7 +14,8 @@ export const transactionController = {
   async createTransaction(req: any, res: any) {
     try {
       // Use X-User-ID header if available
-      const userId = req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[createTransaction] Using userId:", userId);
 
       const transaction = new Transaction({
@@ -31,7 +32,8 @@ export const transactionController = {
   async uploadCSV(req: any, res: any) {
     try {
       // Use X-User-ID header if available
-      const userId = req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[uploadCSV] Using userId:", userId);
 
       const results: any = [];
@@ -91,7 +93,8 @@ export const transactionController = {
   async updateTransaction(req: any, res: any) {
     try {
       // Use X-User-ID header if available
-      const userId = req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[updateTransaction] Using userId:", userId);
 
       const updateData = { ...req.body };
@@ -101,7 +104,11 @@ export const transactionController = {
 
       const transaction = await Transaction.findOneAndUpdate(
         { _id: req.params.id, createdBy: userId },
-        { ...updateData, isUserConfirmed: updateData.isUserConfirmed || updateData.category ? true : false },
+        {
+          ...updateData,
+          isUserConfirmed:
+            updateData.isUserConfirmed || updateData.category ? true : false,
+        },
         { new: true, runValidators: true }
       );
 
@@ -122,7 +129,8 @@ export const transactionController = {
   async deleteTransaction(req: any, res: any) {
     try {
       // Use X-User-ID header if available
-      const userId = req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[deleteTransaction] Using userId:", userId);
 
       const transaction = await Transaction.findOneAndDelete({
@@ -135,6 +143,123 @@ export const transactionController = {
       res.json({ message: "Transaction deleted successfully" });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  },
+
+  async deleteTransactionsByBankAccount(req: any, res: any) {
+    try {
+      // Use X-User-ID header if available
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      console.log("[deleteTransactionsByBankAccount] Using userId:", userId);
+
+      const { bankAccountId } = req.params;
+
+      if (!bankAccountId) {
+        return res.status(400).json({ error: "Bank account ID is required" });
+      }
+
+      // Delete all transactions associated with the bank account for this user
+      const result = await Transaction.deleteMany({
+        bankAccount: bankAccountId,
+        createdBy: userId,
+      });
+
+      res.json({
+        message: `${result.deletedCount} transactions deleted successfully`,
+        deletedCount: result.deletedCount,
+      });
+    } catch (error: any) {
+      console.error("[deleteTransactionsByBankAccount] Error:", error.message);
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  async getOrphanedTransactions(req: any, res: any) {
+    try {
+      // Use X-User-ID header if available
+      const currentUserId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      console.log("[getOrphanedTransactions] Using userId:", currentUserId);
+
+      // Get all PlaidItems for this user to find valid bank account IDs
+      const plaidItems = await mongoose
+        .model("PlaidItem")
+        .find({ userId: currentUserId });
+      const validBankAccountIds = plaidItems.flatMap((item) =>
+        item.accounts.map((account) => account.accountId)
+      );
+
+      console.log(
+        "[getOrphanedTransactions] Valid bank account IDs:",
+        validBankAccountIds
+      );
+
+      // Find transactions that don't have valid bank accounts
+      const orphanedTransactions = await Transaction.find({
+        createdBy: currentUserId,
+        $or: [
+          { bankAccount: { $nin: validBankAccountIds } },
+          { bankAccount: { $exists: false } },
+          { bankAccount: null },
+          { bankAccount: "" },
+        ],
+      })
+        .populate("invoice", "invoiceNumber total status")
+        .populate("project", "name")
+        .sort({ date: -1 });
+
+      res.json({
+        message: `Found ${orphanedTransactions.length} orphaned transactions`,
+        count: orphanedTransactions.length,
+        transactions: orphanedTransactions,
+        validBankAccountIds: validBankAccountIds,
+      });
+    } catch (error: any) {
+      console.error("[getOrphanedTransactions] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async deleteOrphanedTransactions(req: any, res: any) {
+    try {
+      // Use X-User-ID header if available
+      const currentUserId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      console.log("[deleteOrphanedTransactions] Using userId:", currentUserId);
+
+      // Get all PlaidItems for this user to find valid bank account IDs
+      const plaidItems = await mongoose
+        .model("PlaidItem")
+        .find({ userId: currentUserId });
+      const validBankAccountIds = plaidItems.flatMap((item) =>
+        item.accounts.map((account) => account.accountId)
+      );
+
+      console.log(
+        "[deleteOrphanedTransactions] Valid bank account IDs:",
+        validBankAccountIds
+      );
+
+      // Delete transactions that don't have valid bank accounts
+      const result = await Transaction.deleteMany({
+        createdBy: currentUserId,
+        $or: [
+          { bankAccount: { $nin: validBankAccountIds } },
+          { bankAccount: { $exists: false } },
+          { bankAccount: null },
+          { bankAccount: "" },
+        ],
+      });
+
+      res.json({
+        message: `${result.deletedCount} orphaned transactions deleted successfully`,
+        deletedCount: result.deletedCount,
+        validBankAccountIds: validBankAccountIds,
+      });
+    } catch (error: any) {
+      console.error("[deleteOrphanedTransactions] Error:", error.message);
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -153,7 +278,8 @@ export const transactionController = {
       } = req.query;
 
       // Directly use the X-User-ID header value for createdBy
-      const userId = req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
 
       console.log("[Transactions] X-User-ID header:", req.header("X-User-ID"));
       console.log("[Transactions] Query with userId:", userId);
@@ -178,7 +304,12 @@ export const transactionController = {
         ];
       }
       if (client) {
-        query.project = { $in: await mongoose.model('Project').find({ client: client }).distinct('_id') };
+        query.project = {
+          $in: await mongoose
+            .model("Project")
+            .find({ client: client })
+            .distinct("_id"),
+        };
       }
 
       console.log("[Transactions] Final query:", JSON.stringify(query));
@@ -200,12 +331,13 @@ export const transactionController = {
   getTransactionById: async (req: any, res: any) => {
     try {
       // Use X-User-ID header if available
-      const userId = req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[getTransactionById] Using userId:", userId);
 
       const transaction = await Transaction.findOne({
         _id: req.params.id,
-        createdBy: userId
+        createdBy: userId,
       });
 
       if (!transaction) {

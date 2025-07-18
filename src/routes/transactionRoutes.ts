@@ -158,31 +158,6 @@ router.put("/:id", auth, transactionController.updateTransaction);
 
 /**
  * @swagger
- * /api/transaction/{id}:
- *   delete:
- *     summary: Delete a transaction
- *     tags: [Transactions]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID of the transaction to delete
- *     responses:
- *       200:
- *         description: Transaction deleted successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Transaction not found
- */
-router.delete("/:id", auth, transactionController.deleteTransaction);
-
-/**
- * @swagger
  * /api/transaction:
  *   get:
  *     summary: Get all transactions
@@ -277,5 +252,144 @@ router.get("/", auth, transactionController.getTransactions);
  *         description: Transaction not found
  */
 router.get("/:id", auth, transactionController.getTransactionById);
+
+/**
+ * @swagger
+ * /api/transaction/orphaned:
+ *   get:
+ *     summary: Get all orphaned transactions (transactions without valid bank accounts)
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Orphaned transactions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Found 3 orphaned transactions"
+ *                 count:
+ *                   type: integer
+ *                   example: 3
+ *                 transactions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 validBankAccountIds:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/orphaned", auth, transactionController.getOrphanedTransactions);
+
+/**
+ * @swagger
+ * /api/transaction/orphaned:
+ *   delete:
+ *     summary: Delete all orphaned transactions (transactions without valid bank accounts)
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Orphaned transactions deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "3 orphaned transactions deleted successfully"
+ *                 deletedCount:
+ *                   type: integer
+ *                   example: 3
+ *                 validBankAccountIds:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.delete(
+  "/orphaned",
+  auth,
+  transactionController.deleteOrphanedTransactions
+);
+
+/**
+ * @swagger
+ * /api/transaction/bank-account/{bankAccountId}:
+ *   delete:
+ *     summary: Delete all transactions associated with a bank account
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: bankAccountId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the bank account whose transactions should be deleted
+ *     responses:
+ *       200:
+ *         description: Transactions deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "5 transactions deleted successfully"
+ *                 deletedCount:
+ *                   type: integer
+ *                   example: 5
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete(
+  "/bank-account/:bankAccountId",
+  auth,
+  transactionController.deleteTransactionsByBankAccount
+);
+
+/**
+ * @swagger
+ * /api/transaction/{id}:
+ *   delete:
+ *     summary: Delete a transaction
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the transaction to delete
+ *     responses:
+ *       200:
+ *         description: Transaction deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Transaction not found
+ */
+router.delete("/:id", auth, transactionController.deleteTransaction);
 
 export default router;
