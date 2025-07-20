@@ -23,20 +23,18 @@ const EmailFallbackTemplate: React.FC<EmailFallbackProps> = ({
   firstName,
   subject: emailSubject,
   actionUrl,
-  actionText = 'Take Action',
+  actionText = 'Continue',
   messageTitle,
   messageBody,
   additionalInfo,
   tokenExpiry,
 }) => {
   return (
-    <Layout preview={`Hi ${firstName}, ${emailSubject}`} headerTitle="Potion">
+    <Layout preview={`Hi ${firstName}, ${emailSubject}`}>
       <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
       {messageTitle && (
-        <Heading as="h3" style={components.sectionHeading}>
-          {messageTitle}
-        </Heading>
+        <Heading style={components.sectionHeading}>{messageTitle}</Heading>
       )}
 
       {messageBody && <Text style={components.text}>{messageBody}</Text>}
@@ -51,15 +49,16 @@ const EmailFallbackTemplate: React.FC<EmailFallbackProps> = ({
 
       {tokenExpiry && (
         <Text style={components.smallText}>
-          This link expires in {tokenExpiry}.
+          <strong>This link expires in {tokenExpiry}</strong> - please take
+          action soon to avoid delays.
         </Text>
       )}
 
       {additionalInfo && <Text style={components.text}>{additionalInfo}</Text>}
 
-      <Text style={components.text}>
-        If you have any questions, please don't hesitate to reach out to our
-        support team.
+      <Text style={components.smallText}>
+        Questions? Just reply to this email and our support team will help you
+        out.
       </Text>
     </Layout>
   );

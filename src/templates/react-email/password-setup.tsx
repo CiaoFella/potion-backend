@@ -1,7 +1,16 @@
 import React from 'react';
-import { Heading, Text, Button, Hr, Section } from '@react-email/components';
+import { Heading, Text, Button, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, special } from './_styles/shared';
+import { components, statusBoxes, colors } from './_styles/shared';
+import {
+  CheckCircleIcon,
+  BulletIcon,
+  SettingsIcon,
+  BarChartIcon,
+  FileTextIcon,
+  DollarSignIcon,
+  UsersIcon,
+} from './_components/Icons';
 
 // TypeScript interface for props
 export interface PasswordSetupProps {
@@ -13,7 +22,7 @@ export interface PasswordSetupProps {
 }
 
 // Subject line for the email
-export const subject = 'Welcome to Potion! Set up your password';
+export const subject = 'Set up your Potion password to get started';
 
 // Main template component
 const PasswordSetupEmail: React.FC<PasswordSetupProps> = ({
@@ -25,61 +34,100 @@ const PasswordSetupEmail: React.FC<PasswordSetupProps> = ({
 }) => {
   return (
     <Layout
-      preview={`Welcome ${firstName}! Set up your Potion password to get started.`}
-      headerTitle="Welcome to Potion!"
+      preview={`Welcome ${firstName}! Set up your password to start your ${trialDays}-day trial.`}
     >
-      <Heading style={components.mainHeading}>Welcome to Potion, {firstName}!</Heading>
+      <Heading style={components.mainHeading}>
+        Welcome to Potion, {firstName}!
+      </Heading>
 
       <Text style={components.text}>
-        Thank you for subscribing! Your {trialDays}-day trial has started.
+        Thank you for signing up! We're excited to help you automate your
+        business operations.
       </Text>
 
-      <Text style={components.text}>To access your account, please set up your password:</Text>
+      <div style={statusBoxes.success}>
+        <CheckCircleIcon size={16} color="#059669" />
+        <strong>Your {trialDays}-day free trial is ready</strong>
+      </div>
+
+      <Text style={components.text}>
+        To get started, please set up your password by clicking the button
+        below:
+      </Text>
 
       <Section style={components.buttonSection}>
         <Button href={setupUrl} style={components.button}>
-          Set Up Password
+          Set Up My Password
         </Button>
       </Section>
 
-      <Text style={components.smallText}>This link expires in {tokenExpiry}.</Text>
+      <Text style={components.smallText}>
+        <strong>This link expires in {tokenExpiry}</strong> - set up your
+        password soon to avoid delays.
+      </Text>
 
-      <Hr style={components.hr} />
+      <div style={{ margin: '32px 0' }}>
+        <div
+          style={{
+            borderTop: `1px solid ${colors.border}`,
+            margin: '24px 0',
+          }}
+        />
 
-      <Heading as="h3" style={components.sectionHeading}>
-        Your trial includes:
-      </Heading>
+        <Heading style={components.sectionHeading}>
+          What's included in your trial:
+        </Heading>
 
-      <FeaturesList />
+        <FeaturesList />
 
-      {monthlyPrice && (
-        <Text style={special.pricingHighlight}>Then ${monthlyPrice}/month after trial ends</Text>
-      )}
+        <Text style={components.smallText}>
+          Then ${monthlyPrice}/month • Cancel anytime during your trial period
+        </Text>
+      </div>
 
       <Text style={components.text}>
-        Questions? Reply to this email and we'll help you get started.
+        Have questions? Just reply to this email - our team responds within a
+        few hours.
       </Text>
     </Layout>
   );
 };
 
-// Reusable Features List Component
+// Clean features list component with icons
 const FeaturesList: React.FC = () => {
   const features = [
-    'AI-Powered Business Assistant',
-    'Projects & Task Management',
-    'Contracts & Proposals',
-    'Invoicing & Payments',
-    'CRM & Contact Management',
-    'Financial Analytics',
-    'And all premium features!',
+    {
+      icon: <SettingsIcon size={14} color="#1EC64C" />,
+      text: 'AI-powered business assistant and automation',
+    },
+    {
+      icon: <BarChartIcon size={14} color="#1EC64C" />,
+      text: 'Project management and task tracking',
+    },
+    {
+      icon: <FileTextIcon size={14} color="#1EC64C" />,
+      text: 'Contract creation and proposal management',
+    },
+    {
+      icon: <DollarSignIcon size={14} color="#1EC64C" />,
+      text: 'Automated invoicing and payment processing',
+    },
+    {
+      icon: <UsersIcon size={14} color="#1EC64C" />,
+      text: 'CRM and client relationship management',
+    },
+    {
+      icon: <BarChartIcon size={14} color="#1EC64C" />,
+      text: 'Financial analytics and reporting',
+    },
   ];
 
   return (
     <div>
       {features.map((feature, index) => (
-        <Text key={index} style={components.featureItem}>
-          ✓ {feature}
+        <Text key={index} style={{ ...components.listItem, margin: '8px 0' }}>
+          <span style={components.listItemBullet}>{feature.icon}</span>
+          <span>{feature.text}</span>
         </Text>
       ))}
     </div>

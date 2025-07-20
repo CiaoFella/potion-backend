@@ -1,7 +1,8 @@
 import React from 'react';
 import { Heading, Text, Button, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, special, alerts } from './_styles/shared';
+import { components, statusBoxes } from './_styles/shared';
+import { WarningIcon, BulletIcon } from './_components/Icons';
 
 export interface PaymentFailedProps {
   firstName: string;
@@ -9,7 +10,7 @@ export interface PaymentFailedProps {
   gracePeriod?: string;
 }
 
-export const subject = 'Action needed: Payment issue with your Potion subscription';
+export const subject = 'Action needed - Update your payment method';
 
 const PaymentFailedEmail: React.FC<PaymentFailedProps> = ({
   firstName,
@@ -19,33 +20,51 @@ const PaymentFailedEmail: React.FC<PaymentFailedProps> = ({
   return (
     <Layout
       preview={`Hi ${firstName}, we need to fix a payment issue with your Potion subscription.`}
-      headerTitle="⚠️ Payment Issue"
-      headerStyle={special.errorHeader}
     >
       <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
-      <div style={alerts.error}>
-        ⚠️ <strong>Action Required:</strong> We couldn't process your payment for your Potion
-        subscription.
+      <Text style={components.text}>
+        We couldn't process your payment for your Potion subscription.
+      </Text>
+
+      <div style={statusBoxes.warning}>
+        <WarningIcon size={16} color="#d97706" />
+        <strong>Action required:</strong> Please update your payment method to
+        continue your service.
       </div>
 
       <Text style={components.text}>
-        Don't worry - your account is still active for now, but we need you to update your payment
-        method to continue your service.
+        <strong>Don't worry - your account is still active for now.</strong>
       </Text>
 
-      <Text style={components.text}>
-        <strong>What happened?</strong>
-      </Text>
+      <Text style={components.text}>This usually happens when:</Text>
 
-      <div>
-        <Text style={components.featureItem}>• Your card may have expired</Text>
-        <Text style={components.featureItem}>• Your bank may have declined the payment</Text>
-        <Text style={components.featureItem}>• There might be insufficient funds</Text>
-        <Text style={components.featureItem}>• Your billing address may need updating</Text>
+      <div style={{ margin: '16px 0' }}>
+        <Text style={{ ...components.listItem, margin: '6px 0' }}>
+          <span style={components.listItemBullet}>
+            <BulletIcon size={6} color="#d97706" />
+          </span>
+          <span>Your credit card has expired</span>
+        </Text>
+        <Text style={{ ...components.listItem, margin: '6px 0' }}>
+          <span style={components.listItemBullet}>
+            <BulletIcon size={6} color="#d97706" />
+          </span>
+          <span>Your bank declined the payment</span>
+        </Text>
+        <Text style={{ ...components.listItem, margin: '6px 0' }}>
+          <span style={components.listItemBullet}>
+            <BulletIcon size={6} color="#d97706" />
+          </span>
+          <span>There are insufficient funds in your account</span>
+        </Text>
+        <Text style={{ ...components.listItem, margin: '6px 0' }}>
+          <span style={components.listItemBullet}>
+            <BulletIcon size={6} color="#d97706" />
+          </span>
+          <span>Your billing address needs updating</span>
+        </Text>
       </div>
-
-      <Text style={components.text}>To keep your Potion account active:</Text>
 
       <Section style={components.buttonSection}>
         <Button href={billingUrl} style={components.button}>
@@ -54,21 +73,13 @@ const PaymentFailedEmail: React.FC<PaymentFailedProps> = ({
       </Section>
 
       <Text style={components.text}>
-        <strong>Need help?</strong> Our team is here to assist you:
+        To keep your Potion account active, please update your payment
+        information within <strong>{gracePeriod}</strong>.
       </Text>
 
-      <div>
-        <Text style={components.featureItem}>
-          📧 Email us at{' '}
-          <a href="mailto:support@potionapp.com" style={components.link}>
-            support@potionapp.com
-          </a>
-        </Text>
-        <Text style={components.featureItem}>💬 Chat with us in your Potion dashboard</Text>
-      </div>
-
       <Text style={components.smallText}>
-        If you don't update your payment method within {gracePeriod}, your account may be suspended.
+        <strong>Need help?</strong> Our support team is available to assist you
+        - just reply to this email.
       </Text>
     </Layout>
   );

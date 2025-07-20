@@ -1,313 +1,358 @@
 /**
  * Shared Email Styles
  *
- * Centralized styling system for all React Email templates.
- * Update styles here to change appearance across all emails.
+ * Modern SaaS transactional email styling system following best practices
+ * from companies like Stripe, Linear, and Notion.
  */
 
-// Brand Colors
+// Brand Colors - More subtle and professional
 export const colors = {
   primary: '#1EC64C',
   primaryHover: '#17a441',
-  secondary: '#71F065',
-  text: '#333333',
-  textLight: '#666666',
-  textMuted: '#6c757d',
-  background: '#f8f9fa',
+  secondary: '#f0f9ff',
+  text: '#1f2937',
+  textLight: '#6b7280',
+  textMuted: '#9ca3af',
+  background: '#ffffff',
+  backgroundLight: '#f9fafb',
   white: '#ffffff',
-  border: '#eeeeee',
+  border: '#e5e7eb',
+  borderLight: '#f3f4f6',
 
   // Status Colors
-  success: '#28a745',
-  warning: '#ffc107',
-  warningBackground: '#fff3cd',
-  warningBorder: '#ffeaa7',
-  warningText: '#856404',
-  error: '#dc3545',
-  errorBackground: '#f8d7da',
-  errorBorder: '#f5c6cb',
-  errorText: '#721c24',
-  info: '#17a2b8',
-  infoBackground: '#e7f3ff',
-  infoBorder: '#b3d9ff',
-  infoText: '#0056b3',
+  success: '#059669',
+  successLight: '#d1fae5',
+  warning: '#d97706',
+  warningLight: '#fef3c7',
+  error: '#dc2626',
+  errorLight: '#fee2e2',
+  info: '#2563eb',
+  infoLight: '#dbeafe',
 } as const;
 
-// Typography
+// Typography - Clean and readable
 export const typography = {
   fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,sans-serif',
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif',
 
   // Font Sizes
-  h1: '28px',
-  h2: '24px',
-  h3: '20px',
+  h1: '24px',
+  h2: '20px',
+  h3: '18px',
   body: '16px',
   small: '14px',
   tiny: '12px',
 
   // Line Heights
-  headingLineHeight: '1.2',
-  bodyLineHeight: '1.5',
+  tight: '1.25',
+  normal: '1.5',
+  relaxed: '1.625',
 
   // Font Weights
-  normal: 400,
+  regular: 400,
   medium: 500,
   semibold: 600,
   bold: 700,
 } as const;
 
-// Spacing
+// Spacing - Consistent 8px grid
 export const spacing = {
   xs: '4px',
   sm: '8px',
   md: '16px',
-  lg: '20px',
-  xl: '30px',
-  xxl: '40px',
+  lg: '24px',
+  xl: '32px',
+  xxl: '48px',
 } as const;
 
-// Layout Styles
+// Layout Styles - Clean and minimal
 export const layout = {
   body: {
     backgroundColor: colors.background,
     fontFamily: typography.fontFamily,
     margin: 0,
     padding: 0,
+    lineHeight: typography.normal,
+    color: colors.text,
   },
 
   container: {
-    maxWidth: '600px',
+    maxWidth: '580px',
     margin: '0 auto',
     backgroundColor: colors.white,
-    borderRadius: '8px',
-    overflow: 'hidden',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
   },
 
   header: {
-    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
-    color: colors.white,
-    padding: spacing.xl,
+    padding: `${spacing.xl} ${spacing.xl} ${spacing.lg} ${spacing.xl}`,
     textAlign: 'center' as const,
+    borderBottom: `1px solid ${colors.borderLight}`,
   },
 
   content: {
-    padding: `${spacing.xxl} ${spacing.xl}`,
+    padding: `${spacing.xl} ${spacing.xl}`,
   },
 
   footer: {
-    backgroundColor: colors.background,
-    padding: spacing.xl,
-    textAlign: 'center' as const,
+    backgroundColor: colors.backgroundLight,
+    padding: `${spacing.lg} ${spacing.xl}`,
+    borderTop: `1px solid ${colors.borderLight}`,
   },
 } as const;
 
-// Component Styles
+// Component Styles - Modern and clean
 export const components = {
   logo: {
-    height: '32px',
-    marginBottom: '10px',
+    height: '28px',
+    marginBottom: spacing.sm,
+    display: 'block',
   },
 
-  headerTitle: {
+  brandName: {
+    fontSize: typography.h3,
+    fontWeight: typography.bold,
+    color: colors.text,
     margin: 0,
-    fontSize: typography.h2,
-    fontWeight: typography.semibold,
-    color: colors.white,
+    letterSpacing: '-0.025em',
   },
 
   mainHeading: {
     color: colors.text,
     fontSize: typography.h1,
-    fontWeight: typography.semibold,
+    fontWeight: typography.bold,
     margin: `0 0 ${spacing.lg} 0`,
+    lineHeight: typography.tight,
+    letterSpacing: '-0.025em',
   },
 
   sectionHeading: {
     color: colors.text,
     fontSize: typography.h3,
     fontWeight: typography.semibold,
-    margin: `${spacing.lg} 0 ${spacing.md} 0`,
+    margin: `${spacing.xl} 0 ${spacing.md} 0`,
+    lineHeight: typography.tight,
   },
 
   text: {
     color: colors.text,
     fontSize: typography.body,
-    lineHeight: typography.bodyLineHeight,
-    margin: `${spacing.md} 0`,
+    lineHeight: typography.normal,
+    margin: `0 0 ${spacing.md} 0`,
+  },
+
+  textLarge: {
+    color: colors.text,
+    fontSize: '18px',
+    lineHeight: typography.normal,
+    margin: `0 0 ${spacing.md} 0`,
   },
 
   smallText: {
     color: colors.textLight,
     fontSize: typography.small,
-    lineHeight: typography.bodyLineHeight,
-    margin: `${spacing.md} 0`,
+    lineHeight: typography.normal,
+    margin: `0 0 ${spacing.sm} 0`,
   },
 
   footerText: {
     fontSize: typography.small,
     color: colors.textMuted,
-    margin: `${spacing.sm} 0`,
-  },
-
-  footerSmall: {
-    fontSize: typography.tiny,
-    color: colors.textMuted,
-    margin: `${spacing.sm} 0`,
+    margin: `0 0 ${spacing.sm} 0`,
+    textAlign: 'center' as const,
   },
 
   link: {
     color: colors.primary,
     textDecoration: 'none',
+    fontWeight: typography.medium,
   },
 
   button: {
     backgroundColor: colors.primary,
     color: colors.white,
-    padding: `${typography.small} ${spacing.xl}`,
-    borderRadius: '6px',
+    padding: `14px 28px`,
+    borderRadius: '8px',
     fontSize: typography.body,
     fontWeight: typography.semibold,
     textDecoration: 'none',
     display: 'inline-block',
+    lineHeight: '1',
+    border: 'none',
+    cursor: 'pointer',
+  },
+
+  buttonSecondary: {
+    backgroundColor: colors.backgroundLight,
+    color: colors.text,
+    border: `1px solid ${colors.border}`,
+    padding: `13px 27px`,
+    borderRadius: '8px',
+    fontSize: typography.body,
+    fontWeight: typography.medium,
+    textDecoration: 'none',
+    display: 'inline-block',
+    lineHeight: '1',
+    cursor: 'pointer',
   },
 
   buttonSection: {
-    textAlign: 'center' as const,
+    textAlign: 'left' as const,
     margin: `${spacing.xl} 0`,
   },
 
-  hr: {
-    borderColor: colors.border,
+  divider: {
     borderTop: `1px solid ${colors.border}`,
     margin: `${spacing.xl} 0`,
+    border: 'none',
+    height: '1px',
+    backgroundColor: colors.border,
   },
 
-  featureItem: {
+  listItem: {
     color: colors.text,
     fontSize: typography.body,
-    lineHeight: typography.bodyLineHeight,
-    margin: `${spacing.sm} 0`,
+    lineHeight: typography.normal,
+    margin: `0 0 ${spacing.sm} 0`,
+    display: 'flex',
+    alignItems: 'center',
     paddingLeft: '0',
+  },
+
+  listItemBullet: {
+    display: 'flex',
+    alignItems: 'center',
+    marginRight: '2px',
+    minWidth: '20px',
+    justifyContent: 'flex-start',
+    flexShrink: 0,
   },
 } as const;
 
-// Status Alert Boxes
-export const alerts = {
+// Status Components - Subtle and clean
+export const statusBoxes = {
   success: {
-    backgroundColor: '#d4edda',
-    border: '1px solid #c3e6cb',
-    color: '#155724',
-    padding: '15px',
-    borderRadius: '6px',
+    backgroundColor: colors.successLight,
+    border: `1px solid ${colors.success}20`,
+    color: colors.success,
+    padding: spacing.md,
+    borderRadius: '8px',
     margin: `${spacing.lg} 0`,
-    textAlign: 'center' as const,
+    fontSize: typography.body,
+    fontWeight: typography.medium,
   },
 
   warning: {
-    backgroundColor: colors.warningBackground,
-    border: `1px solid ${colors.warningBorder}`,
-    color: colors.warningText,
-    padding: '15px',
-    borderRadius: '6px',
+    backgroundColor: colors.warningLight,
+    border: `1px solid ${colors.warning}20`,
+    color: colors.warning,
+    padding: spacing.md,
+    borderRadius: '8px',
     margin: `${spacing.lg} 0`,
-    textAlign: 'center' as const,
+    fontSize: typography.body,
+    fontWeight: typography.medium,
   },
 
   error: {
-    backgroundColor: colors.errorBackground,
-    border: `1px solid ${colors.errorBorder}`,
-    color: colors.errorText,
-    padding: '15px',
-    borderRadius: '6px',
+    backgroundColor: colors.errorLight,
+    border: `1px solid ${colors.error}20`,
+    color: colors.error,
+    padding: spacing.md,
+    borderRadius: '8px',
     margin: `${spacing.lg} 0`,
-    textAlign: 'center' as const,
+    fontSize: typography.body,
+    fontWeight: typography.medium,
   },
 
   info: {
-    backgroundColor: colors.infoBackground,
-    border: `1px solid ${colors.infoBorder}`,
-    color: colors.infoText,
-    padding: '15px',
-    borderRadius: '6px',
+    backgroundColor: colors.infoLight,
+    border: `1px solid ${colors.info}20`,
+    color: colors.info,
+    padding: spacing.md,
+    borderRadius: '8px',
     margin: `${spacing.lg} 0`,
-    textAlign: 'center' as const,
-  },
-} as const;
-
-// Special Component Styles
-export const special = {
-  urgencyBox: alerts.warning,
-
-  timer: {
-    background: `linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)`,
-    color: colors.white,
-    padding: spacing.lg,
-    borderRadius: '6px',
-    margin: `${spacing.lg} 0`,
-    textAlign: 'center' as const,
-    fontSize: '18px',
-    fontWeight: typography.semibold,
-  },
-
-  stats: {
-    backgroundColor: colors.background,
-    padding: spacing.lg,
-    borderRadius: '6px',
-    margin: `${spacing.lg} 0`,
-  },
-
-  pricingHighlight: {
-    color: colors.primary,
     fontSize: typography.body,
-    fontWeight: typography.semibold,
-    margin: `${spacing.lg} 0`,
-  },
-
-  errorHeader: {
-    background: `linear-gradient(135deg, ${colors.error} 0%, #c82333 100%)`,
-    color: colors.white,
-    padding: spacing.xl,
-    textAlign: 'center' as const,
-  },
-
-  warningHeader: {
-    background: `linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)`,
-    color: colors.white,
-    padding: spacing.xl,
-    textAlign: 'center' as const,
+    fontWeight: typography.medium,
   },
 } as const;
 
-// Utility functions for dynamic styles
+// Special Components
+export const special = {
+  codeBlock: {
+    backgroundColor: colors.backgroundLight,
+    border: `1px solid ${colors.border}`,
+    borderRadius: '6px',
+    padding: spacing.md,
+    fontFamily: 'Monaco, Consolas, "Lucida Console", monospace',
+    fontSize: typography.small,
+    color: colors.text,
+    margin: `${spacing.md} 0`,
+    wordBreak: 'break-all' as const,
+  },
+
+  statsCard: {
+    backgroundColor: colors.backgroundLight,
+    border: `1px solid ${colors.border}`,
+    borderRadius: '8px',
+    padding: spacing.lg,
+    margin: `${spacing.lg} 0`,
+  },
+
+  timeline: {
+    borderLeft: `2px solid ${colors.border}`,
+    paddingLeft: spacing.lg,
+    marginLeft: spacing.sm,
+  },
+
+  badge: {
+    display: 'inline-block',
+    padding: `4px 12px`,
+    borderRadius: '12px',
+    fontSize: typography.small,
+    fontWeight: typography.medium,
+    backgroundColor: colors.backgroundLight,
+    color: colors.textLight,
+    border: `1px solid ${colors.border}`,
+  },
+} as const;
+
+// Utility functions
 export const utils = {
   /**
    * Create consistent margin for text elements
    */
-  textMargin: (top = spacing.md, bottom = spacing.md) => ({
+  spacing: (top = spacing.md, bottom = spacing.md) => ({
     margin: `${top} 0 ${bottom} 0`,
   }),
 
   /**
-   * Create button with custom color
+   * Create button with custom colors
    */
-  customButton: (backgroundColor = colors.primary, textColor = colors.white) => ({
+  customButton: (
+    backgroundColor = colors.primary,
+    textColor = colors.white,
+  ) => ({
     ...components.button,
     backgroundColor,
     color: textColor,
   }),
 
   /**
-   * Create alert box with custom colors
+   * Create status box with custom colors
    */
-  customAlert: (bgColor: string, borderColor: string, textColor: string) => ({
+  customStatusBox: (
+    bgColor: string,
+    borderColor: string,
+    textColor: string,
+  ) => ({
     backgroundColor: bgColor,
-    border: `1px solid ${borderColor}`,
+    border: `1px solid ${borderColor}20`,
     color: textColor,
-    padding: '15px',
-    borderRadius: '6px',
+    padding: spacing.md,
+    borderRadius: '8px',
     margin: `${spacing.lg} 0`,
-    textAlign: 'center' as const,
+    fontSize: typography.body,
+    fontWeight: typography.medium,
   }),
 } as const;
+
+// Legacy aliases for backward compatibility
+export const alerts = statusBoxes;
