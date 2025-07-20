@@ -1,6 +1,5 @@
 import express from 'express';
 import {
-  register,
   login,
   forgotPassword,
   verifyOTPAndResetPassword,
@@ -26,26 +25,6 @@ const router = express.Router();
  *   name: Auth
  *   description: Authentication related endpoints
  */
-
-/**
- * @swagger
- * /api/auth/register:
- *   post:
- *     summary: Register a new user
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *               $ref: '#/components/schemas/SignUpDto'
- *     responses:
- *       201:
- *         description: User registered successfully
- *       400:
- *         description: Invalid request data
- */
-router.post('/register', register);
 
 /**
  * @swagger
