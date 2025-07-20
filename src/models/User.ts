@@ -11,6 +11,15 @@ const userSchema = new mongoose.Schema(
     resetPasswordOTP: String,
     resetPasswordOTPExpiry: Date,
     refreshToken: String,
+    isPasswordSet: { type: Boolean, default: false },
+    passwordSetupToken: String,
+    passwordSetupTokenExpiry: Date,
+    signupSource: {
+      type: String,
+      enum: ["checkout", "direct"],
+      default: "checkout",
+    },
+    checkoutSessionId: String,
     countryCode: String,
     phoneNumber: String,
     language: String,
@@ -73,12 +82,12 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-userSchema.post('save', async function (doc) {
+userSchema.post("save", async function (doc) {
   try {
     // Check if user already has a default tax rate
     const existingDefaultTax = await TaxRate.findOne({
       userId: doc._id,
-      isDefault: true
+      isDefault: true,
     });
 
     // If no default tax rate exists, create one with 0%
@@ -89,7 +98,7 @@ userSchema.post('save', async function (doc) {
         description: "Default tax rate of 0%",
         type: "Flat",
         flatRate: 0,
-        isDefault: true
+        isDefault: true,
       });
     }
   } catch (error) {
