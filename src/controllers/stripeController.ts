@@ -170,16 +170,15 @@ export const createDirectCheckout = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const { priceId, successUrl, cancelUrl } = req.body;
+    const { priceId, successUrl, cancelUrl, metadata } = req.body;
 
     // Validate required fields
     if (!priceId) {
       return res.status(400).json({ message: 'Price ID is required' });
     }
 
-    // Create checkout session without pre-existing customer
-    // Stripe will collect customer details during checkout
-    const session = await stripe.checkout.sessions.create({
+    // Prepare session configuration
+    const sessionConfig: any = {
       line_items: [
         {
           price: priceId,
@@ -194,7 +193,19 @@ export const createDirectCheckout = async (
       cancel_url: cancelUrl,
       payment_method_types: ['card'],
       allow_promotion_codes: true,
-    });
+    };
+
+    // If metadata is provided (e.g., Google user info), include it
+    if (metadata) {
+      sessionConfig.metadata = metadata;
+
+      // If we have Google user info, pre-fill customer email
+      if (metadata.email) {
+        sessionConfig.customer_email = metadata.email;
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
 
     res.json({
       url: session.url,

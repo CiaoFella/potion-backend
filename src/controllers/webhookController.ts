@@ -105,7 +105,8 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
   }
 
   try {
-    const { firstName, lastName, email } = session.metadata || {};
+    const { firstName, lastName, email, googleId, authProvider } =
+      session.metadata || {};
     const customerId = session.customer as string;
     const subscriptionId = session.subscription as string;
 
@@ -118,17 +119,18 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
     // Get subscription details
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
+    // Check if this is a Google-authenticated user
+    const isGoogleUser = authProvider === 'google' && googleId;
+
     // Create or update user
     let user = await User.findOne({ email });
 
     if (!user) {
-      // Create new user without password set
-      user = new User({
+      // Create new user
+      const userData = {
         firstName,
         lastName,
         email,
-        password: 'TEMP_PASSWORD', // Will be replaced when password is set
-        isPasswordSet: false,
         signupSource: 'checkout',
         checkoutSessionId: session.id,
         subscription: {
@@ -141,7 +143,26 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
             : null,
           currentPeriodEnd: new Date(subscription.current_period_end * 1000),
         },
-      });
+      };
+
+      if (isGoogleUser) {
+        // Google-authenticated user
+        user = new User({
+          ...userData,
+          password: 'NO_PASSWORD_GOOGLE_AUTH', // Placeholder - won't be used
+          isPasswordSet: true, // They don't need password setup
+          googleId,
+          authProvider: 'google',
+        });
+      } else {
+        // Regular checkout user
+        user = new User({
+          ...userData,
+          password: 'TEMP_PASSWORD', // Will be replaced when password is set
+          isPasswordSet: false,
+          authProvider: 'password',
+        });
+      }
 
       // Emit new user event for CRM categories creation
       myEmitter.emit('new-user', user);
@@ -158,22 +179,37 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
           : null,
         currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       };
+
+      // If this is a Google user and they don't have Google auth set up, update them
+      if (isGoogleUser && user.authProvider !== 'google') {
+        user.googleId = googleId;
+        user.authProvider = 'google';
+        user.isPasswordSet = true; // They can now login with Google
+      }
     }
 
-    // Generate password setup token (24-48 hours expiry)
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
-
-    user.passwordSetupToken = token;
-    user.passwordSetupTokenExpiry = expiry;
     await user.save();
 
-    // Send password setup email using React Email
-    await sendPasswordSetupEmail(email, firstName || 'there', token);
+    // Handle post-checkout actions based on auth method
+    if (isGoogleUser) {
+      // Google user - no password setup needed
+      console.log(
+        `Google-authenticated user checkout completed: ${email}. User can login with Google.`,
+      );
+    } else {
+      // Regular user - send password setup email
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
-    console.log(
-      `New user checkout completed and password setup email sent to: ${email}`,
-    );
+      user.passwordSetupToken = token;
+      user.passwordSetupTokenExpiry = expiry;
+      await user.save();
+
+      await sendPasswordSetupEmail(email, firstName || 'there', token);
+      console.log(
+        `New user checkout completed and password setup email sent to: ${email}`,
+      );
+    }
   } catch (error) {
     console.error('Error processing checkout completion:', error);
   }
