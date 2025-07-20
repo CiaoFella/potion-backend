@@ -1,13 +1,17 @@
 export const config = {
   port: process.env.PORT || 3000,
   baseURL:
-    (process.env.NODE_ENV || "DEV") == "DEV"
-      ? "https://dev-api.potionapp.com"
-      : "https://api.potionapp.com",
+    (process.env.NODE_ENV || 'DEV') == 'DEV'
+      ? 'https://dev-api.potionapp.com'
+      : 'https://api.potionapp.com',
   frontURL:
-    (process.env.NODE_ENV || "DEV") == "DEV"
-      ? "https://dev.potionapp.com"
-      : "https://my.potionapp.com",
+    process.env.FRONTEND_URL ||
+    ((process.env.NODE_ENV || 'DEV') === 'DEV' &&
+    (process.env.PORT === '5000' || !process.env.NODE_ENV)
+      ? 'http://localhost:3000'
+      : (process.env.NODE_ENV || 'DEV') === 'DEV'
+        ? 'https://dev.potionapp.com'
+        : 'https://my.potionapp.com'),
   jwtSecret: process.env.JWT_SECRET as string,
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
