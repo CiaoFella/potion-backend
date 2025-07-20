@@ -44,7 +44,6 @@ import { Anomalies } from "./models/Anomalies";
 import { Accountant, UserAccountantAccess } from "./models/AccountantAccess";
 import { auth, unifiedAuth } from "./middleware/auth";
 import reportsRoutes from "./routes/reportsRoutes";
-import balanceRoutes from "./routes/balanceRoutes";
 
 //Hooks registration
 import "./models/Subcontractor";
@@ -73,15 +72,18 @@ const app = express();
 let origin =
   process.env.NODE_ENV === "DEV"
     ? [
-        "https://dev-api.go-potion.com",
+        "https://potion-dev-api.vercel.app",
         "https://dev.go-potion.com",
+        "https://dev.potionapp.com",
+        "https://dev-api.potionapp.com",
         "https://backlog.go-potion.com",
         "https://potion-dev-admin.vercel.app",
         "https://potion-web-git-finhub-champ3oys-projects.vercel.app",
       ]
     : [
-        "https://go-potion.com",
-        "https://api.go-potion.com",
+        "https://potionapp.com",
+        "https://my.potionapp.com",
+        "https://api.potionapp.com",
         "https://potion-admin.vercel.app",
         "https://potion-web-git-finhub-champ3oys-projects.vercel.app",
       ];
@@ -182,9 +184,6 @@ app.use("/api/admin", adminRoutes);
 
 // Add Plaid routes
 app.use("/api/plaid", plaidRoutes);
-
-// Add balance calculation routes
-app.use("/api/balances", balanceRoutes);
 
 // Add anomaly routes
 app.use("/api/anomalies", anomalyRoutes);

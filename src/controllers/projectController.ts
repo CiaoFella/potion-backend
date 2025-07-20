@@ -336,6 +336,7 @@ export const projectController = {
       }
 
       project.files.push({
+        fileDisplayName: filesInfo[0]?.fileDisplayName,
         fileName: filesInfo[0]?.fileName,
         fileType: filesInfo[0]?.fileType,
       });

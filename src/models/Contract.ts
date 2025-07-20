@@ -52,6 +52,7 @@ const contractSchema = new mongoose.Schema(
     deleted: { type: Boolean, default: false },
     rawContent: { type: String },
     logo: {
+      fileDisplayName: { type: String },
       fileName: { type: String },
       fileType: { type: String },
     },

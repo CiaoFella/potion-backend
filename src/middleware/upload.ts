@@ -17,10 +17,10 @@ const upload = multer({
     bucket: config.s3BucketName,
     acl: "private",
     metadata: (req, file, cb) => {
-      cb(null, { fieldName: file.fieldname });
+      cb(null, { fieldName: file.fieldname});
     },
     key: (req, file, cb) => {
-      cb(null, file.originalname);
+      cb(null, `${Date.now()}-${file.originalname}`);
     },
   }),
   limits: {
@@ -49,6 +49,7 @@ export const uploadF = async (req: any, res: any, next: any) => {
       const uploadedFiles = await Promise.all(
         files.map(async (file: any) => {
           return {
+            fileDisplayName: file.originalname,
             fileName: file.key,
             fileType: file.mimetype,
           };
@@ -67,7 +68,7 @@ export const uploadF = async (req: any, res: any, next: any) => {
 
 export const directDownload = async (req: any, res: any) => {
   const { fileName } = req.params;
-
+  
   try {
     const command = new GetObjectCommand({
       Bucket: config.s3BucketName,
@@ -75,7 +76,6 @@ export const directDownload = async (req: any, res: any) => {
     });
 
     const { Body, ContentType } = await s3.send(command);
-    
     res.setHeader('Content-Type', ContentType);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     

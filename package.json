@@ -2,11 +2,13 @@
   "name": "potionbk",
   "version": "1.0.0",
   "main": "app.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "build": "tsc",
     "start": "node dist/app.js",
-    "watch": "tsc --watch",
-    "dev": "nodemon src/app.ts"
+    "dev": "nodemon src/app.ts",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
@@ -19,12 +21,10 @@
     "@types/jsonwebtoken": "^8.5.5",
     "@types/multer": "^1.4.12",
     "@types/multer-s3": "^3.0.3",
-    "@types/node": "^22.7.4",
     "@types/nodemailer": "^6.4.4",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.7",
-    "@types/uuid": "^10.0.0",
-    "typescript": "^5.6.2"
+    "@types/uuid": "^10.0.0"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.670.0",
@@ -55,9 +55,11 @@
     "resend": "^4.0.0",
     "socket.io": "^4.8.1",
     "stripe": "^17.7.0",
+    "@types/node": "^22.7.4",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "ts-node": "^10.9.2",
+    "typescript": "^5.6.2",
     "uuid": "^11.1.0"
   }
 }

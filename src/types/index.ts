@@ -16,7 +16,7 @@ export interface IProject {
   description: string;
   client: mongoose.Types.ObjectId;
   contracts: [mongoose.Types.ObjectId];
-  files: [{ fileName: string; fileType: string }];
+  files: [{ fileDisplayName:string; fileName: string; fileType: string }];
   createdBy: mongoose.Types.ObjectId;
   deleted: Boolean;
 }

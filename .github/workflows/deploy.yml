@@ -1,31 +1,77 @@
-name: Deploy to EC2
+name: Deploy to AWS
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - dev # Deploy on push to main branch
+      - main
+      - prod
 
 jobs:
-  deploy:
+  deploy-dev:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH Key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
-      - name: Deploy to EC2
-        run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd ${{ secrets.DEPLOY_PATH }}
-            git pull origin main
-            yarn install  # or yarn install
-            sudo yarn build
-            pm2 restart yarn  # If using PM2
-          EOF
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Dev EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USERNAME }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu/potion-backend
+            git fetch origin
+            git reset --hard origin/main
+            npm install
+            npm run build
+            pm2 restart potion-api || pm2 start ecosystem.config.js --env development
+            pm2 save
+
+  deploy-prod:
+    if: github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Prod EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu/potion-backend
+            git fetch origin
+            git reset --hard origin/prod
+            npm install
+            npm run build
+            pm2 restart potion-api || pm2 start ecosystem.config.js --env production
+            pm2 save
