@@ -228,6 +228,75 @@ export const resendPasswordSetup = async (
   }
 };
 
+// Google authentication check and login
+export const googleCheck = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const { email, googleId, name } = req.body;
+
+    if (!email || !googleId) {
+      return res
+        .status(400)
+        .json({ message: 'Email and Google ID are required' });
+    }
+
+    // Check if user exists (by email or googleId)
+    let user = await User.findOne({
+      $or: [{ email }, { googleId }],
+    });
+
+    if (user) {
+      // User exists - log them in
+
+      // If user exists but doesn't have Google auth set up, link the Google account
+      if (!user.googleId) {
+        user.googleId = googleId;
+        // Keep the original authProvider - don't change it
+        // This allows users to have both email/password AND Google auth
+        await user.save();
+      }
+
+      // Generate tokens for existing user
+      const tokens = generateTokens(user._id.toString());
+
+      // Update refresh token
+      user.refreshToken = tokens.refreshToken;
+      await user.save();
+
+      // Get profile picture URL if available
+      let uri = user?.profilePicture?.fileName
+        ? await getSignedDownloadUrl(
+            user.profilePicture.fileName,
+            user.profilePicture.fileType || '',
+          )
+        : '';
+
+      res.json({
+        userExists: true,
+        accessToken: tokens.accessToken,
+        user: {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          profilePicture: uri,
+          subscription: user.subscription?.status || null,
+        },
+      });
+    } else {
+      // User doesn't exist - they need to sign up
+      res.json({
+        userExists: false,
+        message: 'User needs to complete signup',
+      });
+    }
+  } catch (error) {
+    console.error('Google check error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Update login function to handle password setup scenarios
 export const login = async (req: Request, res: Response): Promise<any> => {
   try {
