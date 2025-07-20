@@ -13,6 +13,7 @@ import {
   setupPassword,
   validatePasswordToken,
   resendPasswordSetup,
+  googleCheck,
 } from '../controllers/authController';
 import { auth } from '../middleware/auth';
 import { uploadF } from '../middleware/upload';
@@ -120,6 +121,47 @@ router.get('/validate-token/:token', validatePasswordToken);
  *         description: User not found
  */
 router.post('/resend-password-setup', resendPasswordSetup);
+
+/**
+ * @swagger
+ * /api/auth/google-check:
+ *   post:
+ *     summary: Check if Google user exists and login
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               googleId:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User check completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 userExists:
+ *                   type: boolean
+ *                 accessToken:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/google-check', googleCheck);
 
 /**
  * @swagger
