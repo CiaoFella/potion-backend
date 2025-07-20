@@ -68,7 +68,8 @@ export const createCheckoutSession = async (
   priceId: string,
   successUrl: string,
   cancelUrl: string,
-  trialDays: number = 7
+  trialDays: number = 7,
+  metadata?: { firstName: string; lastName: string; email: string }
 ): Promise<Stripe.Checkout.Session> => {
   return await stripe.checkout.sessions.create({
     customer: customerId,
@@ -85,11 +86,6 @@ export const createCheckoutSession = async (
     success_url: successUrl,
     cancel_url: cancelUrl,
     payment_method_types: ["card"],
-
-    // payment_method_options: {
-    //   link: {
-    //     setup_future_usage: "none",
-    //   },
-    // },
+    metadata: metadata || {},
   });
 };
