@@ -40,10 +40,10 @@ import { initSocketIo } from './services/socket';
 import { subscribeToInternalEvents } from './services/events';
 import analyticsRoutes from './routes/analyticsRoutes';
 import anomalyRoutes from './routes/anomalyRoutes';
-import { Anomalies } from './models/Anomalies';
 import { Accountant, UserAccountantAccess } from './models/AccountantAccess';
 import { auth, unifiedAuth } from './middleware/auth';
 import reportsRoutes from './routes/reportsRoutes';
+import devRoutes from './routes/devRoutes';
 
 //Hooks registration
 import './models/Subcontractor';
@@ -199,6 +199,11 @@ app.use('/api/anomalies', anomalyRoutes);
 
 // Register reports routes
 app.use('/api/reports', reportsRoutes);
+
+// Development routes (only in development)
+if (process.env.NODE_ENV === 'development') {
+  app.use('/dev', devRoutes);
+}
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
