@@ -7,13 +7,11 @@ import {
   getUserSubscription,
   createSubscriptionCheckout,
   createCustomerPortal,
-  createSignupCheckout,
   createDirectCheckout,
 } from '../controllers/stripeController';
 
 const router = express.Router();
 
-router.post('/checkout/signup', createSignupCheckout);
 router.post('/checkout/direct', createDirectCheckout);
 
 router.post('/subscription', auth, createUserSubscription);
