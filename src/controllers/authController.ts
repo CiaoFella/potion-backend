@@ -6,72 +6,10 @@ import { sendEmail } from '../services/emailService';
 import { Tokens } from '../types';
 import { config } from '../config/config';
 import { getSignedDownloadUrl } from '../services/storageService';
-import { initializeSubscription } from './stripeController';
-import { myEmitter } from '../services/eventEmitter';
+
 import crypto from 'crypto';
 import { reactEmailService } from '../services/reactEmailService';
 import type { PasswordSetupProps } from '../templates/react-email/password-setup';
-
-export const register = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { firstName, lastName, email, password } = req.body;
-
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-
-    user = new User({
-      firstName,
-      lastName,
-      email,
-      password,
-    });
-
-    const tokens = generateTokens(user._id.toString());
-
-    // Save refresh token to user document
-    user.refreshToken = tokens.refreshToken;
-    await user.save();
-
-    // Initialize Stripe customer and subscription data
-    await initializeSubscription(
-      user._id.toString(),
-      email,
-      `${firstName} ${lastName}`,
-    );
-
-    myEmitter.emit('new-user', user);
-
-    // Set refresh token as HTTP-only cookie
-    res.cookie('refreshToken', tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    let uri = user?.profilePicture?.fileName
-      ? await getSignedDownloadUrl(
-          user!.profilePicture!.fileName || '',
-          user!.profilePicture!.fileType || '',
-        )
-      : '';
-
-    res.json({
-      accessToken: tokens.accessToken,
-      user: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        profilePicture: uri,
-        subscription: user.subscription?.status || null,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
 
 export const generateTokens = (userId: string): Tokens => {
   const accessToken = jwt.sign({ userId }, config.jwtSecret!, {
