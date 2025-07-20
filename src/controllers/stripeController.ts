@@ -18,38 +18,6 @@ const stripe = new Stripe(config.stripeSecretKey!, {
   apiVersion: '2025-02-24.acacia',
 });
 
-// Initialize subscription during registration
-export const initializeSubscription = async (
-  userId: string,
-  email: string,
-  fullName: string,
-): Promise<void> => {
-  try {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // Create a customer in Stripe
-    const customerId = await createCustomer(email, fullName);
-
-    // Update user with Stripe customer ID
-    user.subscription = {
-      status: null,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: null,
-      stripePriceId: null,
-      trialEndsAt: null,
-      currentPeriodEnd: null,
-    };
-
-    await user.save();
-  } catch (error) {
-    console.error('Failed to initialize subscription:', error);
-    throw error;
-  }
-};
-
 // Create a new subscription with trial period
 export const createUserSubscription = async (
   req: Request,
