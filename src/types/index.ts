@@ -32,7 +32,7 @@ export interface IContract {
   title: string;
   client: mongoose.Types.ObjectId;
   project: mongoose.Types.ObjectId;
-  status: "draft" | "pending" | "signed";
+  status: "draft" | "pending" | "signed" | "canceled";
 }
 
 export interface IInvoice {
@@ -40,7 +40,7 @@ export interface IInvoice {
   client: mongoose.Types.ObjectId;
   project: mongoose.Types.ObjectId;
   amount: number;
-  status: "draft" | "sent" | "paid";
+  status: "draft" | "sent" | "paid" | "canceled";
 }
 
 export interface Tokens {
