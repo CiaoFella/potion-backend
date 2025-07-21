@@ -169,14 +169,14 @@ export const createDirectCheckout = async (
   req: Request,
   res: Response,
 ): Promise<any> => {
+  const { priceId, successUrl, cancelUrl, metadata } = req.body;
+
+  // Validate required fields
+  if (!priceId) {
+    return res.status(400).json({ message: 'Price ID is required' });
+  }
+
   try {
-    const { priceId, successUrl, cancelUrl, metadata } = req.body;
-
-    // Validate required fields
-    if (!priceId) {
-      return res.status(400).json({ message: 'Price ID is required' });
-    }
-
     // Prepare session configuration
     const sessionConfig: any = {
       line_items: [
