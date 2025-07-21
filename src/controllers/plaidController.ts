@@ -3,6 +3,7 @@ import { PlaidService } from "../services/plaidService";
 import { PlaidItem } from "../models/PlaidItem";
 import { Transaction } from "../models/Transaction";
 import { BalanceCalculationService } from "../services/balanceCalculationService";
+import { plaidClient } from "../config/plaid";
 
 export const plaidController = {
   async createLinkToken(req: Request, res: Response): Promise<void> {
@@ -179,4 +180,24 @@ export const plaidController = {
       res.status(400).json({ error: error.message });
     }
   },
+
+  async getPlaidTransactions(req: Request, res: Response): Promise<void> {
+    const { account_id, start_date, end_date } = req.params;
+    console.log('---------------------------------', account_id)
+    if (!account_id) return new Promise(() => {})
+
+    try {
+      // Use X-User-ID header if available
+      const userId =
+        req.header("X-User-ID") || req.user?.userId || req.user?.id;
+      console.log("[getPlaidTransactions] Using userId:", userId);
+      const plaidItems = await PlaidItem.find({ userId: userId });
+      console.log(plaidItems)
+
+      res.json({test: "test"});
+    } catch(error) {
+      console.error("[getPlaidTransactions] Error:", error.message);
+      res.status(400).json({ error: error.message });
+    }
+  }
 };
