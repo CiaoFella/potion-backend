@@ -101,20 +101,12 @@ const FeaturesList: React.FC = () => {
       text: 'AI-powered business assistant and automation',
     },
     {
-      icon: <BarChartIcon size={14} color="#1EC64C" />,
-      text: 'Project management and task tracking',
-    },
-    {
       icon: <FileTextIcon size={14} color="#1EC64C" />,
       text: 'Contract creation and proposal management',
     },
     {
       icon: <DollarSignIcon size={14} color="#1EC64C" />,
       text: 'Automated invoicing and payment processing',
-    },
-    {
-      icon: <UsersIcon size={14} color="#1EC64C" />,
-      text: 'CRM and client relationship management',
     },
     {
       icon: <BarChartIcon size={14} color="#1EC64C" />,

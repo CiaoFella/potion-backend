@@ -444,24 +444,72 @@ export const forgotPassword = async (
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP valid for 10 minutes
+    // Generate password setup token (same system as signup)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
-    // Save OTP to user document
-    user.resetPasswordOTP = otp;
-    user.resetPasswordOTPExpiry = otpExpiry;
+    // Save token to user document (reuse password setup fields)
+    user.passwordSetupToken = token;
+    user.passwordSetupTokenExpiry = expiry;
     await user.save();
 
-    // Send OTP via email
-    await sendEmail({
-      to: email,
-      subject: 'Password Reset OTP',
-      text: `Your OTP for password reset is: ${otp}. This OTP is valid for 10 minutes.`,
-    });
+    // Send password setup email using React Email
+    try {
+      const setupUrl = `${config.frontURL}/setup-password/${token}`;
 
-    res.json({ message: 'OTP sent to your email' });
+      const props: PasswordSetupProps = {
+        firstName: user.firstName,
+        setupUrl,
+        trialDays: 7,
+        monthlyPrice: 29,
+        tokenExpiry: '48 hours',
+      };
+
+      const { subject, html } = await reactEmailService.renderTemplate(
+        'password-setup',
+        props,
+      );
+
+      await sendEmail({
+        to: email,
+        subject: 'Reset your Potion password',
+        html,
+      });
+
+      console.log(`Password reset email sent to: ${email}`);
+    } catch (templateError) {
+      // Fallback to React Email fallback template
+      console.error('Template error, using fallback:', templateError);
+      const setupUrl = `${config.frontURL}/setup-password/${token}`;
+
+      try {
+        const fallbackProps = {
+          firstName: user.firstName,
+          subject: 'Reset your Potion password',
+          actionUrl: setupUrl,
+          actionText: 'Reset Password',
+          messageBody: "Here's your password reset link:",
+          tokenExpiry: '48 hours',
+        };
+
+        const { subject: fallbackSubject, html: fallbackHtml } =
+          await reactEmailService.renderTemplate(
+            'email-fallback',
+            fallbackProps,
+          );
+
+        await sendEmail({
+          to: email,
+          subject: fallbackSubject,
+          html: fallbackHtml,
+        });
+      } catch (fallbackError) {
+        console.error('Fallback template also failed', fallbackError);
+        return res.status(500).json({ message: 'Failed to send reset email' });
+      }
+    }
+
+    res.json({ message: 'Password reset email sent' });
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ message: 'Server error' });

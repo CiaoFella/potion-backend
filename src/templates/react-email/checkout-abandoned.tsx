@@ -85,14 +85,6 @@ const FeaturesList: React.FC = () => {
     },
     {
       icon: <BarChartIcon size={14} color="#2563eb" />,
-      text: 'Project and task management tools',
-    },
-    {
-      icon: <UsersIcon size={14} color="#2563eb" />,
-      text: 'CRM and client relationship management',
-    },
-    {
-      icon: <BarChartIcon size={14} color="#2563eb" />,
       text: 'Financial analytics and comprehensive reports',
     },
   ];
