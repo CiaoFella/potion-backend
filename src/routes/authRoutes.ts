@@ -1,6 +1,5 @@
-import express from "express";
+import express from 'express';
 import {
-  register,
   login,
   forgotPassword,
   verifyOTPAndResetPassword,
@@ -11,9 +10,13 @@ import {
   getUser,
   deleteUser,
   updateProfilePicture,
-} from "../controllers/authController";
-import { auth } from "../middleware/auth";
-import { uploadF } from "../middleware/upload";
+  setupPassword,
+  validatePasswordToken,
+  resendPasswordSetup,
+  googleCheck,
+} from '../controllers/authController';
+import { auth } from '../middleware/auth';
+import { uploadF } from '../middleware/upload';
 
 const router = express.Router();
 
@@ -23,26 +26,6 @@ const router = express.Router();
  *   name: Auth
  *   description: Authentication related endpoints
  */
-
-/**
- * @swagger
- * /api/auth/register:
- *   post:
- *     summary: Register a new user
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *               $ref: '#/components/schemas/SignUpDto'
- *     responses:
- *       201:
- *         description: User registered successfully
- *       400:
- *         description: Invalid request data
- */
-router.post("/register", register);
 
 /**
  * @swagger
@@ -62,7 +45,123 @@ router.post("/register", register);
  *       401:
  *         description: Unauthorized
  */
-router.post("/login", login);
+router.post('/login', login);
+
+// Password setup routes for checkout flow
+/**
+ * @swagger
+ * /api/auth/setup-password/{token}:
+ *   post:
+ *     summary: Set password using email token
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Password set successfully
+ *       400:
+ *         description: Invalid or expired token
+ */
+router.post('/setup-password/:token', setupPassword);
+
+/**
+ * @swagger
+ * /api/auth/validate-token/{token}:
+ *   get:
+ *     summary: Validate password setup token
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Token is valid
+ *       400:
+ *         description: Invalid or expired token
+ */
+router.get('/validate-token/:token', validatePasswordToken);
+
+/**
+ * @swagger
+ * /api/auth/resend-password-setup:
+ *   post:
+ *     summary: Resend password setup email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Password setup email sent
+ *       404:
+ *         description: User not found
+ */
+router.post('/resend-password-setup', resendPasswordSetup);
+
+/**
+ * @swagger
+ * /api/auth/google-check:
+ *   post:
+ *     summary: Check if Google user exists and login
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               googleId:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User check completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 userExists:
+ *                   type: boolean
+ *                 accessToken:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/google-check', googleCheck);
 
 /**
  * @swagger
@@ -85,7 +184,7 @@ router.post("/login", login);
  *       400:
  *         description: Invalid email
  */
-router.post("/forgot-password", forgotPassword);
+router.post('/forgot-password', forgotPassword);
 
 /**
  * @swagger
@@ -110,7 +209,7 @@ router.post("/forgot-password", forgotPassword);
  *       400:
  *         description: Invalid OTP
  */
-router.post("/verify-otp", verifyOTp);
+router.post('/verify-otp', verifyOTp);
 
 /**
  * @swagger
@@ -137,7 +236,7 @@ router.post("/verify-otp", verifyOTp);
  *       400:
  *         description: Invalid request
  */
-router.post("/reset-password", verifyOTPAndResetPassword);
+router.post('/reset-password', verifyOTPAndResetPassword);
 
 /**
  * @swagger
@@ -147,29 +246,32 @@ router.post("/reset-password", verifyOTPAndResetPassword);
  *     tags: [Auth]
  *     responses:
  *       200:
- *         description: Token refreshed
+ *         description: Token refreshed successfully
  *       401:
- *         description: Unauthorized
+ *         description: Invalid refresh token
  */
-router.post("/refresh-token", refreshToken);
+router.post('/refresh-token', refreshToken);
 
 /**
  * @swagger
  * /api/auth/logout:
- *   get:
- *     summary: Logout user
+ *   post:
+ *     summary: User logout
  *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Logged out successfully
+ *         description: Logout successful
  */
-router.get("/logout", logout);
+router.post('/logout', auth, logout);
 
+// Protected routes
 /**
  * @swagger
- * /api/auth:
+ * /api/auth/update:
  *   put:
- *     summary: Update user information
+ *     summary: Update user profile
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
@@ -178,18 +280,62 @@ router.get("/logout", logout);
  *       content:
  *         application/json:
  *           schema:
- *               $ref: '#/components/schemas/User'
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
  *     responses:
  *       200:
- *         description: User updated successfully
+ *         description: Profile updated successfully
  *       400:
- *         description: Invalid data
+ *         description: Invalid request
  */
-router.put("/", auth, updateUser);
+router.put('/update', auth, updateUser);
 
 /**
  * @swagger
- * /api/auth/profile:
+ * /api/auth:
+ *   get:
+ *     summary: Get authenticated user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User data retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/', auth, getUser);
+
+/**
+ * @swagger
+ * /api/auth:
+ *   delete:
+ *     summary: Delete user account
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *       400:
+ *         description: Invalid request
+ */
+router.delete('/', auth, deleteUser);
+
+/**
+ * @swagger
+ * /api/auth/profile-picture:
  *   put:
  *     summary: Update profile picture
  *     tags: [Auth]
@@ -211,42 +357,6 @@ router.put("/", auth, updateUser);
  *       400:
  *         description: Invalid request
  */
-router.put("/profile", uploadF, auth, updateProfilePicture);
-
-/**
- * @swagger
- * /api/auth:
- *   get:
- *     summary: Get authenticated user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User data retrieved
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
- *       401:
- *         description: Unauthorized
- */
-router.get("/", auth, getUser);
-
-/**
- * @swagger
- * /api/auth:
- *   delete:
- *     summary: Delete user account
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User deleted successfully
- *       400:
- *         description: Invalid request
- */
-router.delete("/", auth, deleteUser);
+router.put('/profile-picture', auth, uploadF, updateProfilePicture);
 
 export default router;

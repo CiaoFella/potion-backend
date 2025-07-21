@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
-import { TaxRate } from "./TaxRate";
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { TaxRate } from './TaxRate';
 
 const userSchema = new mongoose.Schema(
   {
@@ -11,6 +11,22 @@ const userSchema = new mongoose.Schema(
     resetPasswordOTP: String,
     resetPasswordOTPExpiry: Date,
     refreshToken: String,
+    isPasswordSet: { type: Boolean, default: false },
+    passwordSetupToken: String,
+    passwordSetupTokenExpiry: Date,
+    signupSource: {
+      type: String,
+      enum: ['checkout', 'direct'],
+      default: 'checkout',
+    },
+    checkoutSessionId: String,
+    // Google OAuth fields
+    googleId: String,
+    authProvider: {
+      type: String,
+      enum: ['password', 'google'],
+      default: 'password',
+    },
     countryCode: String,
     phoneNumber: String,
     language: String,
@@ -27,18 +43,18 @@ const userSchema = new mongoose.Schema(
     tfa: { type: Boolean, default: false },
     startOfWeek: {
       type: String,
-      default: "Monday",
-      enum: ["Monday", "Sunday"],
+      default: 'Monday',
+      enum: ['Monday', 'Sunday'],
     },
     timeFormat: {
       type: String,
-      default: "24 hour",
-      enum: ["24 hour", "12 hour"],
+      default: '24 hour',
+      enum: ['24 hour', '12 hour'],
     },
     dateFormat: {
       type: String,
-      default: "dd/mm/yyyy",
-      enum: ["dd/mm/yyyy", "mm/dd/yyyy", "yyyy/mm/dd"],
+      default: 'dd/mm/yyyy',
+      enum: ['dd/mm/yyyy', 'mm/dd/yyyy', 'yyyy/mm/dd'],
     },
     notifications: {
       indox: { type: Boolean, default: true },
@@ -59,15 +75,15 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     currentSession: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "TimeTracker",
+      ref: 'TimeTracker',
       required: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-userSchema.pre("save", async function (next) {
-  if (this.isModified("password")) {
+userSchema.pre('save', async function (next) {
+  if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 10);
   }
   next();
@@ -78,23 +94,23 @@ userSchema.post('save', async function (doc) {
     // Check if user already has a default tax rate
     const existingDefaultTax = await TaxRate.findOne({
       userId: doc._id,
-      isDefault: true
+      isDefault: true,
     });
 
     // If no default tax rate exists, create one with 0%
     if (!existingDefaultTax) {
       await TaxRate.create({
         userId: doc._id,
-        name: "Default Tax Rate",
-        description: "Default tax rate of 0%",
-        type: "Flat",
+        name: 'Default Tax Rate',
+        description: 'Default tax rate of 0%',
+        type: 'Flat',
         flatRate: 0,
-        isDefault: true
+        isDefault: true,
       });
     }
   } catch (error) {
-    console.error("Error creating default tax rate:", error);
+    console.error('Error creating default tax rate:', error);
   }
 });
 
-export const User = mongoose.model("User", userSchema);
+export const User = mongoose.model('User', userSchema);

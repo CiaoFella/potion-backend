@@ -1,6 +1,8 @@
 // controllers/subscriptionController.ts
-import { Request, Response } from "express";
-import { User } from "../models/User";
+import { Request, Response } from 'express';
+import { User } from '../models/User';
+import Stripe from 'stripe';
+
 import {
   createCustomer,
   createSubscription,
@@ -9,45 +11,17 @@ import {
   updateSubscription,
   createBillingPortalSession,
   createCheckoutSession,
-} from "../services/stripeService";
-import { config } from "../config/config";
+} from '../services/stripeService';
+import { config } from '../config/config';
 
-// Initialize subscription during registration
-export const initializeSubscription = async (
-  userId: string,
-  email: string,
-  fullName: string
-): Promise<void> => {
-  try {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Create a customer in Stripe
-    const customerId = await createCustomer(email, fullName);
-
-    // Update user with Stripe customer ID
-    user.subscription = {
-      status: null,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: null,
-      stripePriceId: null,
-      trialEndsAt: null,
-      currentPeriodEnd: null,
-    };
-
-    await user.save();
-  } catch (error) {
-    console.error("Failed to initialize subscription:", error);
-    throw error;
-  }
-};
+const stripe = new Stripe(config.stripeSecretKey!, {
+  apiVersion: '2025-02-24.acacia',
+});
 
 // Create a new subscription with trial period
 export const createUserSubscription = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const userId = req.user?.userId;
@@ -55,7 +29,7 @@ export const createUserSubscription = async (
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     let customerId = user.subscription?.stripeCustomerId;
@@ -63,7 +37,7 @@ export const createUserSubscription = async (
       // Create customer if it doesn't exist
       customerId = await createCustomer(
         user.email,
-        `${user.firstName} ${user.lastName}`
+        `${user.firstName} ${user.lastName}`,
       );
 
       // Ensure subscription object exists and update with new customer ID
@@ -76,7 +50,7 @@ export const createUserSubscription = async (
     const subscription = await createSubscription(
       customerId,
       priceId,
-      7 // 7-day trial
+      7, // 7-day trial
     );
 
     // Update user with subscription details
@@ -92,7 +66,7 @@ export const createUserSubscription = async (
     await user.save();
 
     res.json({
-      message: "Subscription created successfully",
+      message: 'Subscription created successfully',
       subscription: {
         id: subscription.id,
         status: subscription.status,
@@ -101,15 +75,15 @@ export const createUserSubscription = async (
       },
     });
   } catch (error) {
-    console.error("Create subscription error:", error);
-    res.status(500).json({ message: "Failed to create subscription", error });
+    console.error('Create subscription error:', error);
+    res.status(500).json({ message: 'Failed to create subscription', error });
   }
 };
 
 // Cancel a subscription
 export const cancelUserSubscription = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const userId = req.user?.userId;
@@ -118,11 +92,11 @@ export const cancelUserSubscription = async (
     if (!user || !user.subscription?.stripeSubscriptionId) {
       return res
         .status(404)
-        .json({ message: "User or subscription not found" });
+        .json({ message: 'User or subscription not found' });
     }
 
     const canceledSubscription = await cancelSubscription(
-      user.subscription.stripeSubscriptionId
+      user.subscription.stripeSubscriptionId,
     );
 
     // Update user subscription status
@@ -130,44 +104,44 @@ export const cancelUserSubscription = async (
     await user.save();
 
     res.json({
-      message: "Subscription canceled successfully",
+      message: 'Subscription canceled successfully',
       status: canceledSubscription.status,
     });
   } catch (error) {
-    console.error("Cancel subscription error:", error);
-    res.status(500).json({ message: "Failed to cancel subscription", error });
+    console.error('Cancel subscription error:', error);
+    res.status(500).json({ message: 'Failed to cancel subscription', error });
   }
 };
 
 // Get current subscription details
 export const getUserSubscription = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const userId = req.user?.userId;
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (!user.subscription?.stripeSubscriptionId) {
       return res.json({
-        message: "No active subscription",
+        message: 'No active subscription',
         subscription: null,
       });
     }
 
     // Get latest subscription details from Stripe
     const subscription = await retrieveSubscription(
-      user.subscription.stripeSubscriptionId
+      user.subscription.stripeSubscriptionId,
     );
 
     // Update local subscription data with latest from Stripe
     user.subscription.status = subscription.status;
     user.subscription.currentPeriodEnd = new Date(
-      subscription.current_period_end * 1000
+      subscription.current_period_end * 1000,
     );
     if (subscription.trial_end) {
       user.subscription.trialEndsAt = new Date(subscription.trial_end * 1000);
@@ -185,15 +159,71 @@ export const getUserSubscription = async (
       },
     });
   } catch (error) {
-    console.error("Get subscription error:", error);
-    res.status(500).json({ message: "Failed to get subscription", error });
+    console.error('Get subscription error:', error);
+    res.status(500).json({ message: 'Failed to get subscription', error });
+  }
+};
+
+// Create direct Stripe Checkout session (no user form - collects info in Stripe)
+export const createDirectCheckout = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  const { priceId, successUrl, cancelUrl, metadata } = req.body;
+
+  // Validate required fields
+  if (!priceId) {
+    return res.status(400).json({ message: 'Price ID is required' });
+  }
+
+  try {
+    // Prepare session configuration
+    const sessionConfig: any = {
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      subscription_data: {
+        trial_period_days: 7,
+      },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      payment_method_types: ['card'],
+      allow_promotion_codes: true,
+    };
+
+    // If metadata is provided (e.g., Google user info), include it
+    if (metadata) {
+      sessionConfig.metadata = metadata;
+
+      // If we have Google user info, pre-fill customer email
+      if (metadata.email) {
+        sessionConfig.customer_email = metadata.email;
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    res.json({
+      url: session.url,
+      sessionId: session.id,
+    });
+  } catch (error) {
+    console.error('Create direct checkout error:', error);
+    res.status(500).json({
+      message: 'Failed to create checkout session',
+      error,
+    });
   }
 };
 
 // Create Stripe Checkout session for subscription
 export const createSubscriptionCheckout = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const userId = req.user?.userId;
@@ -201,7 +231,7 @@ export const createSubscriptionCheckout = async (
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     let customerId = user.subscription?.stripeCustomerId;
@@ -209,7 +239,7 @@ export const createSubscriptionCheckout = async (
       // Create customer if it doesn't exist
       customerId = await createCustomer(
         user.email,
-        `${user.firstName} ${user.lastName}`
+        `${user.firstName} ${user.lastName}`,
       );
 
       // Ensure subscription object exists and update with new customer ID
@@ -224,22 +254,22 @@ export const createSubscriptionCheckout = async (
       priceId,
       successUrl,
       cancelUrl,
-      7 // 7-day trial
+      7, // 7-day trial
     );
 
     res.json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    console.error("Create checkout error:", error);
+    console.error('Create checkout error:', error);
     res
       .status(500)
-      .json({ message: "Failed to create checkout session", error });
+      .json({ message: 'Failed to create checkout session', error });
   }
 };
 
 // Create customer portal session
 export const createCustomerPortal = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const userId = req.user?.userId;
@@ -247,19 +277,19 @@ export const createCustomerPortal = async (
 
     const user = await User.findById(userId);
     if (!user || !user.subscription?.stripeCustomerId) {
-      return res.status(404).json({ message: "User or customer not found" });
+      return res.status(404).json({ message: 'User or customer not found' });
     }
 
     const portalSession = await createBillingPortalSession(
       user.subscription.stripeCustomerId,
-      returnUrl
+      returnUrl,
     );
 
     res.json({ url: portalSession.url });
   } catch (error) {
-    console.error("Create portal error:", error);
+    console.error('Create portal error:', error);
     res
       .status(500)
-      .json({ message: "Failed to create customer portal", error });
+      .json({ message: 'Failed to create customer portal', error });
   }
 };
