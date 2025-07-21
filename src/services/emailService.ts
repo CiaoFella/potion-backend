@@ -12,7 +12,7 @@ interface EmailOptions {
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
-    const result = await resend.emails.send({
+    await resend.emails.send({
       from: config.emailFrom,
       to: options.to,
       subject: options.subject,
