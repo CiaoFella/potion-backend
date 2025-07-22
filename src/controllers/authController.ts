@@ -126,6 +126,7 @@ export const login = async (req: Request, res: Response): Promise<any> => {
         email: user.email,
         profilePicture: uri,
         subscription: user.subscription?.status || null,
+        id: user._id,
       },
     });
   } catch (error) {

@@ -181,21 +181,36 @@ export const plaidController = {
     }
   },
 
-  async getPlaidTransactions(req: Request, res: Response): Promise<void> {
-    const { account_id, start_date, end_date } = req.params;
-    console.log('---------------------------------', account_id)
-    if (!account_id) return new Promise(() => {})
+  async getPlaidTransactions(req: Request, res: Response): Promise<any> {
+    const { account_id, start_date, end_date, user_id } = req.query;
+    if (!account_id || !start_date || !end_date || !user_id) {
+      res.status(400).json({ error: "An error occured, please try again later!" });
+      return;
+    };
 
     try {
-      // Use X-User-ID header if available
-      const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[getPlaidTransactions] Using userId:", userId);
-      const plaidItems = await PlaidItem.find({ userId: userId });
-      console.log(plaidItems)
+      const plaidItem = await PlaidItem.findOne({
+        accounts: { $elemMatch: { accountId: account_id } },
+        userId: user_id,
+      });
 
-      res.json({test: "test"});
-    } catch(error) {
+      if (!plaidItem.accessToken) {
+        res.status(400).json({ error: "An error occured, please try again later!" });
+        return;
+      };
+
+      console.log(
+        `[getPlaidTransactions] Found Plaiditem for user ${user_id} with accountId ${account_id}`
+      );
+
+      const transactions = await plaidClient.transactionsGet({
+        access_token: plaidItem.accessToken,
+        start_date: (start_date as string),
+        end_date: (end_date as string),
+      })
+
+      res.json({ plaidTransactions: transactions.data });
+    } catch (error) {
       console.error("[getPlaidTransactions] Error:", error.message);
       res.status(400).json({ error: error.message });
     }
