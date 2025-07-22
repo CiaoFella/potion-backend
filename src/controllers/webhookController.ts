@@ -13,6 +13,8 @@ import type { PaymentFailedProps } from '../templates/react-email/payment-failed
 import type { AsyncPaymentSuccessProps } from '../templates/react-email/async-payment-success';
 import type { AsyncPaymentFailedProps } from '../templates/react-email/async-payment-failed';
 import type { SubscriptionCancelledProps } from '../templates/react-email/subscription-cancelled';
+import type { SubscriptionPausedProps } from '../templates/react-email/subscription-paused';
+import type { SubscriptionResumedProps } from '../templates/react-email/subscription-resumed';
 
 const stripe = new Stripe(config.stripeSecretKey!, {
   apiVersion: '2025-02-24.acacia',
@@ -76,6 +78,16 @@ export const handleStripeWebhook = async (
       case 'customer.subscription.trial_will_end':
         await handleTrialWillEnd(event.data.object as Stripe.Subscription);
         break;
+      case 'customer.subscription.paused':
+        await handleSubscriptionPaused(
+          event.data.object as Stripe.Subscription,
+        );
+        break;
+      case 'customer.subscription.resumed':
+        await handleSubscriptionResumed(
+          event.data.object as Stripe.Subscription,
+        );
+        break;
 
       // INVOICE EVENTS
       case 'invoice.payment_succeeded':
@@ -85,6 +97,12 @@ export const handleStripeWebhook = async (
         break;
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+
+      // CUSTOMER PORTAL EVENTS
+      case 'billing_portal.session.created':
+        // Log when user enters customer portal
+        console.log('Customer portal session created:', event.data.object);
         break;
 
       default:
@@ -432,6 +450,19 @@ const handleSubscriptionUpdated = async (subscription: Stripe.Subscription) => {
       return;
     }
 
+    // Check if subscription was just scheduled for cancellation
+    const wasScheduledForCancellation =
+      user.subscription?.cancelAtPeriodEnd || false;
+    const isNowScheduledForCancellation = subscription.cancel_at_period_end;
+
+    // Detect when cancellation was just scheduled (user canceled via customer portal)
+    const justScheduledCancellation =
+      !wasScheduledForCancellation && isNowScheduledForCancellation;
+
+    // Detect when subscription was just resumed (user resumed via customer portal)
+    const justResumedSubscription =
+      wasScheduledForCancellation && !isNowScheduledForCancellation;
+
     user.subscription = {
       ...(user?.subscription || {}),
       status: subscription.status,
@@ -441,9 +472,48 @@ const handleSubscriptionUpdated = async (subscription: Stripe.Subscription) => {
       trialEndsAt: subscription.trial_end
         ? new Date(subscription.trial_end * 1000)
         : null,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
+      canceledAt: subscription.canceled_at
+        ? new Date(subscription.canceled_at * 1000)
+        : null,
+      cancelAt: subscription.cancel_at
+        ? new Date(subscription.cancel_at * 1000)
+        : null,
     };
 
     await user.save();
+
+    // Send cancellation email if subscription was just scheduled for cancellation
+    if (justScheduledCancellation) {
+      console.log(`🎯 CANCELLATION DETECTED: Sending email to ${user.email}`);
+      await sendSubscriptionCancelledEmail(user.email, user.firstName);
+      console.log(
+        `✅ Subscription cancellation email sent successfully to: ${user.email}`,
+      );
+
+      // Extract feedback from cancellation details if available
+      if (subscription.cancellation_details?.feedback) {
+        console.log(
+          `📝 Cancellation feedback: ${subscription.cancellation_details.feedback}`,
+        );
+        // You could store this feedback for analytics
+      }
+    }
+    // Send resumption email if subscription was just resumed
+    else if (justResumedSubscription) {
+      console.log(
+        `🎉 SUBSCRIPTION RESUMED: Sending welcome back email to ${user.email}`,
+      );
+      await sendSubscriptionResumedEmail(user.email, user.firstName);
+      console.log(
+        `✅ Subscription resumption email sent successfully to: ${user.email}`,
+      );
+    } else {
+      console.log(
+        `📄 Regular subscription update for: ${user.email} (no cancellation or resumption)`,
+      );
+    }
+
     console.log(`Subscription updated for user: ${user.email}`);
   } catch (error) {
     console.error('Error updating subscription:', error);
@@ -555,6 +625,68 @@ const handleInvoicePaymentFailed = async (invoice: Stripe.Invoice) => {
     console.log(`Payment failed notification sent to user: ${user.email}`);
   } catch (error) {
     console.error('Error handling invoice payment failure:', error);
+  }
+};
+
+// Handle Subscription Paused
+const handleSubscriptionPaused = async (subscription: Stripe.Subscription) => {
+  try {
+    const customerId = subscription.customer as string;
+    const user = await User.findOne({
+      'subscription.stripeCustomerId': customerId,
+    });
+
+    if (!user) {
+      console.error(`User not found for Stripe Customer ID: ${customerId}`);
+      return;
+    }
+
+    user.subscription = {
+      ...(user?.subscription || {}),
+      status: 'paused',
+      stripeSubscriptionId: subscription.id,
+      stripePriceId: subscription.items.data[0].price.id,
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+    };
+
+    await user.save();
+
+    // Send subscription paused email
+    await sendSubscriptionPausedEmail(user.email, user.firstName);
+    console.log(`Subscription paused for user: ${user.email}`);
+  } catch (error) {
+    console.error('Error handling subscription paused:', error);
+  }
+};
+
+// Handle Subscription Resumed
+const handleSubscriptionResumed = async (subscription: Stripe.Subscription) => {
+  try {
+    const customerId = subscription.customer as string;
+    const user = await User.findOne({
+      'subscription.stripeCustomerId': customerId,
+    });
+
+    if (!user) {
+      console.error(`User not found for Stripe Customer ID: ${customerId}`);
+      return;
+    }
+
+    user.subscription = {
+      ...(user?.subscription || {}),
+      status: subscription.status,
+      stripeSubscriptionId: subscription.id,
+      stripePriceId: subscription.items.data[0].price.id,
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+    };
+
+    await user.save();
+
+    // Send subscription resumed email
+    await sendSubscriptionResumedEmail(user.email, user.firstName);
+    console.log(`Subscription resumed for user: ${user.email}`);
+  } catch (error) {
+    console.error('Error handling subscription resumed:', error);
   }
 };
 
@@ -865,6 +997,82 @@ const sendSubscriptionCancelledEmail = async (
         <p>Your Potion subscription has been cancelled.</p>
         <p>You'll continue to have access until your current billing period ends.</p>
         <p>We'd love to have you back anytime!</p>
+      `,
+    });
+  }
+};
+
+const sendSubscriptionPausedEmail = async (
+  email: string,
+  firstName: string,
+) => {
+  try {
+    const props: SubscriptionPausedProps = {
+      firstName,
+      resumeUrl: `${config.frontURL}/billing`,
+      manageBillingUrl: `${config.frontURL}/profile/settings`,
+    };
+
+    const { subject, html } = await reactEmailService.renderTemplate(
+      'subscription-paused',
+      props,
+    );
+
+    return sendEmail({
+      to: email,
+      subject,
+      html,
+    });
+  } catch (error) {
+    console.error('Error sending subscription paused email:', error);
+
+    // Fallback
+    return sendEmail({
+      to: email,
+      subject: 'Your Potion subscription has been paused',
+      html: `
+        <h1>Hi ${firstName},</h1>
+        <p>Your Potion subscription has been paused.</p>
+        <p>You can resume your subscription anytime from your billing settings.</p>
+        <a href="${config.frontURL}/profile/settings">Manage Subscription</a>
+      `,
+    });
+  }
+};
+
+const sendSubscriptionResumedEmail = async (
+  email: string,
+  firstName: string,
+) => {
+  try {
+    const props: SubscriptionResumedProps = {
+      firstName,
+      dashboardUrl: `${config.frontURL}/dashboard`,
+      billingUrl: `${config.frontURL}/profile/settings`,
+    };
+
+    const { subject, html } = await reactEmailService.renderTemplate(
+      'subscription-resumed',
+      props,
+    );
+
+    return sendEmail({
+      to: email,
+      subject,
+      html,
+    });
+  } catch (error) {
+    console.error('Error sending subscription resumed email:', error);
+
+    // Fallback
+    return sendEmail({
+      to: email,
+      subject: 'Welcome back! Your Potion subscription has been resumed',
+      html: `
+        <h1>Welcome back, ${firstName}!</h1>
+        <p>Great news! Your Potion subscription has been resumed and is now active.</p>
+        <p>You now have full access to all premium features again.</p>
+        <a href="${config.frontURL}/dashboard">Go to Dashboard</a>
       `,
     });
   }

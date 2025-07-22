@@ -21,6 +21,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import { checkSubscriptionAccess } from './middleware/subscription';
 import mongooseToSwagger from 'mongoose-to-swagger';
 import { User } from './models/User';
 import { Client } from './models/Client';
@@ -167,27 +168,47 @@ app.get('/api-docs.json', (req, res) => {
 });
 
 // Routes to protect with unified auth that supports both user and accountant tokens
-app.use('/api/transaction', unifiedAuth, transactionRoutes);
-app.use('/api/invoice', unifiedAuth, invoiceRoutes);
-app.use('/api/client', unifiedAuth, clientRoutes);
-app.use('/api/project', unifiedAuth, projectRoutes);
-app.use('/api/contract', unifiedAuth, contractRoutes);
-app.use('/api/timetracker', unifiedAuth, timeTrackerRoutes);
-app.use('/api/search', unifiedAuth, searchRoute);
-app.use('/api/analytics', unifiedAuth, analyticsRoutes);
+app.use(
+  '/api/transaction',
+  unifiedAuth,
+  checkSubscriptionAccess,
+  transactionRoutes,
+);
+app.use('/api/invoice', unifiedAuth, checkSubscriptionAccess, invoiceRoutes);
+app.use('/api/client', unifiedAuth, checkSubscriptionAccess, clientRoutes);
+app.use('/api/project', unifiedAuth, checkSubscriptionAccess, projectRoutes);
+app.use('/api/contract', unifiedAuth, checkSubscriptionAccess, contractRoutes);
+app.use(
+  '/api/timetracker',
+  unifiedAuth,
+  checkSubscriptionAccess,
+  timeTrackerRoutes,
+);
+app.use('/api/search', unifiedAuth, checkSubscriptionAccess, searchRoute);
+app.use(
+  '/api/analytics',
+  unifiedAuth,
+  checkSubscriptionAccess,
+  analyticsRoutes,
+);
 
 // Routes that continue using standard auth
 app.use('/api/auth', authRoutes);
-app.use('/api/crm', auth, crmRoutes);
-app.use('/api/subcontractor', auth, subcontractorRoutes);
+app.use('/api/crm', auth, checkSubscriptionAccess, crmRoutes);
+app.use(
+  '/api/subcontractor',
+  auth,
+  checkSubscriptionAccess,
+  subcontractorRoutes,
+);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/pay', stripeRoutes);
 app.use('/api/chat', chatRoute);
 app.use('/api/upload-file', uploadF, uploadFileController);
 app.use('/api/download-file/:fileName', generateDownloadUrl);
 app.use('/api/accountant', accountantRoutes);
-app.use('/api/user-globals', auth, globalsRoutes);
-app.use('/api/write-offs', auth, userWriteOffRoutes);
+app.use('/api/user-globals', auth, checkSubscriptionAccess, globalsRoutes);
+app.use('/api/write-offs', auth, checkSubscriptionAccess, userWriteOffRoutes);
 // Admin routes
 app.use('/api/admin', adminRoutes);
 
@@ -195,10 +216,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/plaid', plaidRoutes);
 
 // Add anomaly routes
-app.use('/api/anomalies', anomalyRoutes);
+app.use('/api/anomalies', checkSubscriptionAccess, anomalyRoutes);
 
 // Register reports routes
-app.use('/api/reports', reportsRoutes);
+app.use('/api/reports', checkSubscriptionAccess, reportsRoutes);
 
 // Development routes (only in development)
 if (process.env.NODE_ENV === 'development') {

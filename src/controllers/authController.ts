@@ -349,6 +349,47 @@ export const login = async (req: Request, res: Response): Promise<any> => {
         )
       : '';
 
+    // Check subscription status for user feedback
+    const subscriptionInfo = {
+      status: user.subscription?.status || null,
+      currentPeriodEnd: user.subscription?.currentPeriodEnd || null,
+      trialEndsAt: user.subscription?.trialEndsAt || null,
+      requiresSubscription: false,
+      accessDeniedReason: null,
+    };
+
+    // Evaluate subscription access for user awareness
+    if (user.subscription) {
+      const currentDate = new Date();
+
+      // Check if subscription has ended
+      if (user.subscription.status === 'canceled') {
+        if (
+          user.subscription.currentPeriodEnd &&
+          new Date(user.subscription.currentPeriodEnd) <= currentDate
+        ) {
+          subscriptionInfo.requiresSubscription = true;
+          subscriptionInfo.accessDeniedReason =
+            'Your subscription has ended. Please resubscribe to continue using the app.';
+        }
+      } else if (user.subscription.status === 'trialing') {
+        if (
+          user.subscription.trialEndsAt &&
+          new Date(user.subscription.trialEndsAt) <= currentDate
+        ) {
+          subscriptionInfo.requiresSubscription = true;
+          subscriptionInfo.accessDeniedReason =
+            'Your trial period has ended. Please subscribe to continue using the app.';
+        }
+      } else if (
+        ['past_due', 'unpaid', 'incomplete'].includes(user.subscription.status)
+      ) {
+        subscriptionInfo.requiresSubscription = true;
+        subscriptionInfo.accessDeniedReason =
+          'There is an issue with your subscription. Please update your payment method.';
+      }
+    }
+
     res.json({
       accessToken: tokens.accessToken,
       user: {
@@ -356,7 +397,7 @@ export const login = async (req: Request, res: Response): Promise<any> => {
         lastName: user.lastName,
         email: user.email,
         profilePicture: uri,
-        subscription: user.subscription?.status || null,
+        subscription: subscriptionInfo,
       },
     });
   } catch (error) {

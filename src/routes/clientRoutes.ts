@@ -1,6 +1,7 @@
-import express from "express";
-import { clientController } from "../controllers/clientController";
-import { auth } from "../middleware/auth";
+import express from 'express';
+import { clientController } from '../controllers/clientController';
+import { auth } from '../middleware/auth';
+import { checkSubscriptionAccess } from '../middleware/subscription';
 
 const router = express.Router();
 
@@ -25,7 +26,12 @@ const router = express.Router();
  *       401:
  *         description: Unauthorized
  */
-router.get("/trash", auth, clientController.getDeletedClient);
+router.get(
+  '/trash',
+  auth,
+  checkSubscriptionAccess,
+  clientController.getDeletedClient,
+);
 
 /**
  * @swagger
@@ -47,7 +53,7 @@ router.get("/trash", auth, clientController.getDeletedClient);
  *       400:
  *         description: Invalid request data
  */
-router.post("/", auth, clientController.createClient);
+router.post('/', auth, clientController.createClient);
 
 /**
  * @swagger
@@ -83,7 +89,7 @@ router.post("/", auth, clientController.createClient);
  *       400:
  *         description: Invalid request data
  */
-router.put("/:clientId", auth, clientController.updateClient);
+router.put('/:clientId', auth, clientController.updateClient);
 
 /**
  * @swagger
@@ -105,7 +111,7 @@ router.put("/:clientId", auth, clientController.updateClient);
  *       401:
  *         description: Unauthorized
  */
-router.get("/", auth, clientController.getClients);
+router.get('/', auth, clientController.getClients);
 
 /**
  * @swagger
@@ -132,7 +138,7 @@ router.get("/", auth, clientController.getClients);
  *       404:
  *         description: Client not found
  */
-router.get("/:clientId", auth, clientController.getClientsByID);
+router.get('/:clientId', auth, clientController.getClientsByID);
 
 /**
  * @swagger
@@ -155,7 +161,7 @@ router.get("/:clientId", auth, clientController.getClientsByID);
  *       404:
  *         description: Client not found
  */
-router.get("/duplicate/:clientId", auth, clientController.duplicateClient);
+router.get('/duplicate/:clientId', auth, clientController.duplicateClient);
 
 /**
  * @swagger
@@ -182,8 +188,8 @@ router.get("/duplicate/:clientId", auth, clientController.duplicateClient);
  *       404:
  *         description: Client not found
  */
-router.delete("/:clientId", auth, clientController.deleteClient);
+router.delete('/:clientId', auth, clientController.deleteClient);
 
-router.put("/undo/:clientId", auth, clientController.undoDeleteClient);
+router.put('/undo/:clientId', auth, clientController.undoDeleteClient);
 
 export default router;
