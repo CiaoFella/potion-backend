@@ -7,6 +7,9 @@ const accountSchema = new mongoose.Schema({
     type: { type: String, required: true },
     subtype: { type: String, required: true },
     mask: { type: String, required: true },
+    institutionId: { type: String, required: true },
+    institutionName: { type: String, required: true },
+
 }, { _id: false }); // prevent Mongoose from creating _id for subdocuments
 
 const plaidItemSchema = new mongoose.Schema({

@@ -6,7 +6,7 @@ import { CountryCode, LinkTokenCreateRequest, Products } from "plaid";
 import { BalanceCalculationService } from "./balanceCalculationService";
 
 export class PlaidService {
-  static async createLinkToken(userId: string) {
+  static async createLinkToken(userId: string, existingToken?: string) {
     try {
       const configs: LinkTokenCreateRequest = {
         user: {
@@ -68,6 +68,8 @@ export class PlaidService {
             type: account.type,
             subtype: account.subtype,
             mask: account.mask,
+            institutionId: itemResponse.data.item.institution_id,
+            institutionName: institutionResponse.data.institution.name,
           })),
         },
         { upsert: true, new: true }
