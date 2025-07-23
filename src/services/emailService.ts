@@ -1,5 +1,5 @@
-import { Resend } from "resend";
-import { config } from "../config/config";
+import { Resend } from 'resend';
+import { config } from '../config/config';
 
 const resend = new Resend(config.resendApiKey);
 
@@ -17,10 +17,12 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       to: options.to,
       subject: options.subject,
       text: options.text,
-      html: options.html
+      html: options.html,
     });
   } catch (error) {
-    console.error("Error sending email:", error);
-    // throw new Error("Failed to send email");
+    console.error('Error sending email:', error);
+    throw new Error(
+      `Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
   }
 };
