@@ -21,7 +21,7 @@ export const subject = 'Your Potion account is ready - You can now login!';
 
 const SubcontractorLoginReadyEmail: React.FC<SubcontractorLoginReadyProps> = ({
   firstName,
-  loginUrl = 'https://app.potionapp.com/auth/subcontractor/login',
+  loginUrl = 'https://app.potionapp.com/login',
   projectName,
   clientName,
 }) => {

@@ -29,23 +29,26 @@ const SubcontractorInvitationEmail: React.FC<SubcontractorInvitationProps> = ({
   const features = [
     {
       icon: <FileTextIcon size={20} />,
-      title: 'Project Documents',
-      description: 'Access all project files, contracts, and documentation',
+      title: 'Centralized Project Hub',
+      description:
+        'All contracts, briefs, and assets organized in one secure location',
     },
     {
       icon: <CalendarIcon size={20} />,
-      title: 'Time Tracking',
-      description: 'Log hours and track your progress on tasks',
+      title: 'Smart Time Tracking',
+      description:
+        'Effortless hour logging with automated timesheets and reports',
     },
     {
       icon: <UsersIcon size={20} />,
-      title: 'Team Collaboration',
-      description: 'Communicate with the project team and stakeholders',
+      title: 'Direct Communication',
+      description:
+        'Streamlined messaging with clients and project stakeholders',
     },
     {
       icon: <SettingsIcon size={20} />,
-      title: 'Professional Tools',
-      description: 'Access invoicing, reporting, and project management tools',
+      title: 'Payment & Invoicing',
+      description: 'Generate professional invoices and track payment status',
     },
   ];
 
@@ -93,15 +96,14 @@ const SubcontractorInvitationEmail: React.FC<SubcontractorInvitationProps> = ({
         </Text>
 
         <Text style={components.text}>
-          <strong>{senderName}</strong> has invited you to join the{' '}
-          <strong>"{projectName}"</strong> project as a subcontractor
+          <strong>{senderName}</strong> has invited you to collaborate on the{' '}
+          <strong>"{projectName}"</strong> project
           {clientName && ` for ${clientName}`}.
         </Text>
 
         <Text style={components.text}>
-          As part of this project team, you'll have access to a comprehensive
-          suite of tools designed to streamline your workflow and ensure
-          successful project delivery.
+          You'll have access to our professional collaboration platform with all
+          the tools needed to deliver exceptional work efficiently.
         </Text>
       </Section>
 
@@ -172,11 +174,12 @@ const SubcontractorInvitationEmail: React.FC<SubcontractorInvitationProps> = ({
         style={{ padding: `0 ${spacing.xl} ${spacing.xl} ${spacing.xl}` }}
       >
         <Text style={components.footerText}>
-          Welcome to the team! We're excited to work with you on this project.
-          Click the button above to get started.
+          Ready to collaborate? Accept your invitation to join the project team
+          and access your dedicated workspace.
         </Text>
         <Text style={components.footerText}>
-          Need help? Contact us at{' '}
+          Questions about the platform or project setup? Our support team is
+          here to help at{' '}
           <a href="mailto:support@potionapp.com" style={components.link}>
             support@potionapp.com
           </a>

@@ -29,23 +29,27 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
   const features = [
     {
       icon: <BarChartIcon size={20} />,
-      title: 'Advanced Analytics',
-      description: 'Comprehensive financial insights and reporting tools',
+      title: 'Real-Time Financial Insights',
+      description:
+        'Live cash flow analysis, trend reports, and financial health dashboards',
     },
     {
-      icon: <DollarSignIcon size={20} />,
-      title: 'Multi-Client Management',
-      description: 'Manage all your clients in one centralized dashboard',
+      icon: <UsersIcon size={20} />,
+      title: 'Centralized Client Portal',
+      description:
+        'Manage multiple clients seamlessly with role-based access controls',
     },
     {
       icon: <FileTextIcon size={20} />,
-      title: 'Automated Reports',
-      description: 'Generate professional reports with a single click',
+      title: 'Automated Report Generation',
+      description:
+        'P&L statements, balance sheets, and tax reports generated instantly',
     },
     {
       icon: <SettingsIcon size={20} />,
-      title: 'Professional Tools',
-      description: 'Access specialized accounting and tax preparation features',
+      title: 'Professional-Grade Security',
+      description:
+        'Bank-level encryption with audit trails for compliance requirements',
     },
   ];
 
@@ -93,16 +97,14 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
         </Text>
 
         <Text style={components.text}>
-          <strong>{clientName}</strong> has invited you to access their books as
-          an accountant user through Potion Accountant.
+          <strong>{clientName}</strong> has granted you professional access to
+          their financial records through Potion's secure accounting platform.
         </Text>
 
         <Text style={components.text}>
-          As an accounting professional, there's so much more waiting for you in
-          Potion Accountant besides your client's books. As the one place to
-          manage all of your clients and work, Potion Accountant provides you
-          with a suite of tools designed specifically for accountants to help
-          you.
+          Beyond accessing your client's books, Potion offers a comprehensive
+          suite of professional tools designed specifically for accounting firms
+          and practitioners like yourself.
         </Text>
 
         {/* Personal Note Section */}
@@ -171,12 +173,13 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
         style={{ padding: `0 ${spacing.xl} ${spacing.xl} ${spacing.xl}` }}
       >
         <Text style={components.footerText}>
-          Learn more about the tools and features available to you in Potion
-          Accountant. Ready to get started? Accept your invite to test drive the
-          tools now.
+          Join thousands of accounting professionals who trust Potion to
+          streamline their practice. Accept your invitation to explore our
+          professional-grade platform.
         </Text>
         <Text style={components.footerText}>
-          Need help? Contact us at{' '}
+          Questions about setup or features? Our accounting specialist team is
+          available at{' '}
           <a href="mailto:support@potionapp.com" style={components.link}>
             support@potionapp.com
           </a>

@@ -23,7 +23,7 @@ export const subject =
 
 const AccountantLoginReadyEmail: React.FC<AccountantLoginReadyProps> = ({
   firstName,
-  loginUrl = 'https://app.potionapp.com/auth/accountant/login',
+  loginUrl = 'https://app.potionapp.com/login',
   clientsCount,
   clientNames = [],
 }) => {
