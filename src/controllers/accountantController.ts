@@ -17,7 +17,7 @@ const sendAccountantLoginReadyEmail = async (
   clientNames?: string[],
 ) => {
   try {
-    const loginUrl = `${config.frontURL}/auth/accountant/login`;
+    const loginUrl = `${config.frontURL}/login`;
 
     const props: AccountantLoginReadyProps = {
       firstName: firstName || 'there',
@@ -55,7 +55,7 @@ const sendAccountantLoginReadyEmail = async (
                         : ''
                     }
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="${config.frontURL}/auth/accountant/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
+                        <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
                     </div>
                     <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
                 </div>
@@ -118,6 +118,71 @@ const sendAccountantInvitationEmail = async (
   }
 };
 
+// Send email to existing accountant when added to new client
+const sendAccountantAddedToClientEmail = async (
+  email: string,
+  clientName: string,
+  accountantName?: string,
+  note?: string,
+) => {
+  try {
+    const loginUrl = `${config.frontURL}/login`;
+
+    const props = {
+      clientName,
+      loginUrl,
+      accountantName: accountantName || 'there',
+      note,
+    };
+
+    // We'll create this template later, for now use the existing invitation template
+    // but modify the subject and content to reflect that they're being added to existing account
+    const { subject, html } = await reactEmailService.renderTemplate(
+      'accountant-invitation',
+      {
+        ...props,
+        inviteUrl: loginUrl, // Use login URL instead of setup URL
+      },
+    );
+
+    return sendEmail({
+      to: email,
+      subject: `New Client Access Added - ${clientName}`,
+      html: html
+        .replace(
+          'has invited you to access their books as an accountant user through Potion Accountant.',
+          'has added you to their account. You can now access their books using your existing Potion Accountant login.',
+        )
+        .replace('Accept Invitation', 'Login to Access'),
+    });
+  } catch (error) {
+    console.error('Error sending accountant added to client email:', error);
+
+    // Fallback email
+    return sendEmail({
+      to: email,
+      subject: `New Client Access Added - ${clientName}`,
+      html: `
+        <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="text-align: center; padding: 40px 20px 30px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+            <h1 style="font-size: 28px; font-weight: bold; margin: 0;">POTION</h1>
+            <p style="color: #6b7280; margin: 8px 0 0;">Professional Accounting Platform</p>
+          </div>
+          <div style="padding: 40px 30px;">
+            <h2 style="font-size: 18px; margin: 0 0 20px;">Hello ${accountantName || 'there'},</h2>
+            <p><strong>${clientName}</strong> has added you to their account. You can now access their books using your existing Potion Accountant login.</p>
+            ${note ? `<div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;"><p style="font-weight: 600; margin: 0 0 8px;">Personal Message from ${clientName}:</p><p style="margin: 0; font-style: italic;">"${note}"</p></div>` : ''}
+                         <div style="text-align: center; margin: 30px 0;">
+               <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Login to Access</a>
+             </div>
+            <p style="color: #6b7280; font-size: 14px;">You can now manage multiple clients from your Potion Accountant dashboard.</p>
+          </div>
+        </div>
+      `,
+    });
+  }
+};
+
 // Invite an accountant
 export const inviteAccountant = async (
   req: Request & { user?: { userId: string } },
@@ -145,11 +210,7 @@ export const inviteAccountant = async (
     // Check if accountant already exists
     let accountant = await Accountant.findOne({ email });
     let isNewAccountant = !accountant;
-
-    // Send invite email
-    const inviteUrl = isNewAccountant
-      ? `${config.frontURL}/auth/accountant/${inviteToken}`
-      : `${config.frontURL}/auth/accountant/login`;
+    let accountantHasPassword = accountant && accountant.password;
 
     // If accountant doesn't exist, create one
     if (!accountant) {
@@ -189,13 +250,25 @@ export const inviteAccountant = async (
     accountant.userAccesses.push(userAccess._id);
     await accountant.save();
 
-    await sendAccountantInvitationEmail(
-      email,
-      user.firstName,
-      `${config.frontURL}/auth/accountant/${inviteToken}`,
-      name,
-      note, // Pass the note to the email service
-    );
+    // Send appropriate email based on whether accountant already has password
+    if (accountantHasPassword) {
+      // Existing accountant with password - just notify them they've been added
+      await sendAccountantAddedToClientEmail(
+        email,
+        user.firstName,
+        accountant.name,
+        note,
+      );
+    } else {
+      // New accountant or existing without password - send setup email
+      await sendAccountantInvitationEmail(
+        email,
+        user.firstName,
+        `${config.frontURL}/setup-password/${inviteToken}`,
+        name,
+        note,
+      );
+    }
 
     res.status(201).json({
       message: 'Invitation sent successfully',
@@ -573,7 +646,7 @@ export const resendInvitation = async (
     const isNewAccountant = !accountant.password;
 
     // Send invite email again
-    const inviteUrl = `${config.frontURL}/auth/accountant/${inviteToken}`;
+    const inviteUrl = `${config.frontURL}/setup-password/${inviteToken}`;
 
     await sendAccountantInvitationEmail(
       accountant.email,

@@ -1,6 +1,17 @@
 import express from 'express';
-import { auth } from '../middleware/auth';
-import { subcontractorController } from '../controllers/subcontractorController';
+import {
+  subcontractorController,
+  getSubcontractorProjects,
+  assignSubcontractorToProject,
+  getProjectSubcontractors,
+  removeSubcontractorFromProject,
+  bulkAssignSubcontractors,
+} from '../controllers/subcontractorController';
+import {
+  checkWritePermission,
+  requireRole,
+  UserRole,
+} from '../middleware/rbac';
 
 const router = express.Router();
 
@@ -248,7 +259,7 @@ router.post('/login', subcontractorController.subcontractorLogin);
  *       401:
  *         description: Unauthorized
  */
-router.post('/', auth, subcontractorController.createSubcontractor);
+router.post('/', subcontractorController.createSubcontractor);
 
 /**
  * @swagger
@@ -270,7 +281,7 @@ router.post('/', auth, subcontractorController.createSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.get('/all', auth, subcontractorController.getAllSubcontractors);
+router.get('/all', subcontractorController.getAllSubcontractors);
 
 /**
  * @swagger
@@ -298,11 +309,7 @@ router.get('/all', auth, subcontractorController.getAllSubcontractors);
  *       401:
  *         description: Unauthorized
  */
-router.get(
-  '/project/:projectId',
-  auth,
-  subcontractorController.getSubcontractors,
-);
+router.get('/project/:projectId', subcontractorController.getSubcontractors);
 
 /**
  * @swagger
@@ -330,7 +337,7 @@ router.get(
  *       401:
  *         description: Unauthorized
  */
-router.get('/:id', auth, subcontractorController.getSubcontractorById);
+router.get('/:id', subcontractorController.getSubcontractorById);
 
 /**
  * @swagger
@@ -360,7 +367,7 @@ router.get('/:id', auth, subcontractorController.getSubcontractorById);
  *       401:
  *         description: Unauthorized
  */
-router.put('/:id', auth, subcontractorController.updateSubcontractor);
+router.put('/:id', subcontractorController.updateSubcontractor);
 
 /**
  * @swagger
@@ -384,7 +391,7 @@ router.put('/:id', auth, subcontractorController.updateSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.delete('/:id', auth, subcontractorController.deleteSubcontractor);
+router.delete('/:id', subcontractorController.deleteSubcontractor);
 
 /**
  * @swagger
@@ -412,11 +419,7 @@ router.delete('/:id', auth, subcontractorController.deleteSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.post(
-  '/:id/generate-invite',
-  auth,
-  subcontractorController.generateInviteLink,
-);
+router.post('/:id/generate-invite', subcontractorController.generateInviteLink);
 /**
  * @swagger
  * /subcontractor/{id}/invite:
@@ -456,6 +459,55 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/:id/invite', auth, subcontractorController.inviteSubcontractor);
+router.post('/:id/invite', subcontractorController.inviteSubcontractor);
+
+// New multi-project routes
+// Get all projects for a subcontractor (requires subcontractor auth)
+router.get(
+  '/my/projects',
+  requireRole(UserRole.SUBCONTRACTOR),
+  async (req, res) => {
+    await getSubcontractorProjects(req, res);
+  },
+);
+
+// Project assignment management (requires user auth)
+router.post(
+  '/assign-to-project',
+  requireRole(UserRole.USER),
+  checkWritePermission,
+  async (req, res) => {
+    await assignSubcontractorToProject(req, res);
+  },
+);
+
+// Get all subcontractors for a specific project (requires user auth)
+router.get(
+  '/by-project/:projectId',
+  requireRole(UserRole.USER),
+  async (req, res) => {
+    await getProjectSubcontractors(req, res);
+  },
+);
+
+// Remove subcontractor from project (requires user auth)
+router.delete(
+  '/project-access/:accessId',
+  requireRole(UserRole.USER),
+  checkWritePermission,
+  async (req, res) => {
+    await removeSubcontractorFromProject(req, res);
+  },
+);
+
+// Bulk assign subcontractors to project (requires user auth)
+router.post(
+  '/bulk-assign',
+  requireRole(UserRole.USER),
+  checkWritePermission,
+  async (req, res) => {
+    await bulkAssignSubcontractors(req, res);
+  },
+);
 
 export default router;

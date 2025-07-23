@@ -144,6 +144,7 @@ app.post(
 
 // Public routes (no authentication required)
 app.use('/api/auth', authRoutes); // Login, signup, password reset, etc.
+app.use('/api/pay', stripeRoutes); // Stripe payment routes
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/admin', adminRoutes);
 
@@ -284,11 +285,11 @@ app.use(
   accountantRoutes,
 );
 
+// Mount subcontractor routes with RBAC
 app.use(
-  '/api/subcontractor',
-  ...protectedExternal,
-  requireRole(UserRole.USER, UserRole.SUBCONTRACTOR), // Users can manage subcontractors, subcontractors can access their own data
-  enforceProjectAccess,
+  '/api/subcontractors',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.SUBCONTRACTOR), // Allow both users and subcontractors
   subcontractorRoutes,
 );
 

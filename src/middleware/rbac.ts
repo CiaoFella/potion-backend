@@ -4,6 +4,7 @@ import { config } from '../config/config';
 import { User } from '../models/User';
 import { Accountant, UserAccountantAccess } from '../models/AccountantAccess';
 import { Subcontractor } from '../models/Subcontractor';
+import { SubcontractorProjectAccess } from '../models/SubcontractorProjectAccess';
 
 // Define all user types and their capabilities
 export enum UserRole {
@@ -40,7 +41,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   [UserRole.SUBCONTRACTOR]: [
     Permission.READ_PROJECT_DATA,
-    Permission.WRITE_PROJECT_DATA, // Limited to assigned project
+    Permission.WRITE_PROJECT_DATA, // Limited to assigned projects
   ],
   [UserRole.ADMIN]: [
     Permission.MANAGE_USERS,
@@ -60,7 +61,11 @@ declare global {
         permissions: Permission[];
         accessLevel?: 'read' | 'edit'; // For accountants
         targetUserId?: string; // For accountants accessing client data
-        projectId?: string; // For subcontractors
+        projectAccesses?: Array<{
+          projectId: string;
+          userId: string;
+          accessLevel: 'viewer' | 'contributor';
+        }>; // For subcontractors with multi-project access
         subcontractorId?: string; // For subcontractor context
         accountantId?: string; // For accountant context
       };
@@ -91,6 +96,7 @@ export const rbacAuth = async (
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     const userIdFromHeader = req.header('X-User-ID'); // For accountants
+    const projectIdFromHeader = req.header('X-Project-ID'); // For subcontractors
 
     if (!token) {
       res.status(401).json({
@@ -116,7 +122,12 @@ export const rbacAuth = async (
       );
     } else if (decoded.subcontractorId) {
       // Subcontractor token
-      await handleSubcontractorAuth(decoded.subcontractorId, req, res);
+      await handleSubcontractorAuth(
+        decoded.subcontractorId,
+        projectIdFromHeader,
+        req,
+        res,
+      );
     } else if (decoded.adminId) {
       // Admin token
       await handleAdminAuth(decoded.adminId, req, res);
@@ -226,39 +237,78 @@ async function handleAccountantAuth(
 }
 
 /**
- * Handle subcontractor authentication
+ * Handle subcontractor authentication with multi-project support
  */
 async function handleSubcontractorAuth(
   subcontractorId: string,
+  projectIdFromHeader: string | undefined,
   req: Request,
   res: Response,
 ): Promise<void> {
-  const subcontractor = await Subcontractor.findById(subcontractorId)
-    .populate('project')
-    .populate('createdBy');
-
+  const subcontractor = await Subcontractor.findById(subcontractorId);
   if (!subcontractor) {
     res.status(401).json({ message: 'Subcontractor not found' });
     return;
   }
 
-  const projectId = (subcontractor.project as any)?._id?.toString();
-  const createdByUserId = (subcontractor.createdBy as any)?._id?.toString();
+  // Get all active project accesses for this subcontractor
+  const projectAccesses = await SubcontractorProjectAccess.find({
+    subcontractor: subcontractorId,
+    status: 'active',
+  }).populate('project user');
+
+  if (!projectAccesses || projectAccesses.length === 0) {
+    res.status(403).json({
+      message: 'No active project access found',
+      code: 'NO_PROJECT_ACCESS',
+    });
+    return;
+  }
+
+  // If a specific project is requested via header, validate access
+  let targetUserId: string;
+  let targetProjectId: string;
+
+  if (projectIdFromHeader) {
+    const requestedAccess = projectAccesses.find(
+      (access) => access.project._id.toString() === projectIdFromHeader,
+    );
+
+    if (!requestedAccess) {
+      res.status(403).json({
+        message: "You don't have access to this project",
+        code: 'PROJECT_ACCESS_DENIED',
+      });
+      return;
+    }
+
+    targetUserId = requestedAccess.user._id.toString();
+    targetProjectId = projectIdFromHeader;
+  } else {
+    // If no specific project requested, use the first active project
+    // (This is for backward compatibility and general access)
+    const firstAccess = projectAccesses[0];
+    targetUserId = firstAccess.user._id.toString();
+    targetProjectId = firstAccess.project._id.toString();
+  }
 
   req.auth = {
-    userId: createdByUserId, // Owner of the project
+    userId: targetUserId,
     role: UserRole.SUBCONTRACTOR,
     permissions: ROLE_PERMISSIONS[UserRole.SUBCONTRACTOR],
-    projectId,
     subcontractorId,
+    projectAccesses: projectAccesses.map((access) => ({
+      projectId: access.project._id.toString(),
+      userId: access.user._id.toString(),
+      accessLevel: access.accessLevel,
+    })),
   };
 
-  // For subcontractors, they can only access data related to their specific project
-  // Set the user context to the project owner for data filtering
+  // Set user context to the project owner for data filtering
   req.user = {
-    userId: createdByUserId,
-    id: createdByUserId,
-    createdBy: createdByUserId,
+    userId: targetUserId,
+    id: targetUserId,
+    createdBy: targetUserId,
   };
 }
 
@@ -340,13 +390,33 @@ export const checkWritePermission = (
       });
       return;
     }
+
+    // Check if subcontractor has contributor access
+    if (req.auth?.role === UserRole.SUBCONTRACTOR) {
+      const projectId =
+        req.params.projectId || req.body.projectId || req.query.projectId;
+      if (projectId) {
+        const projectAccess = req.auth.projectAccesses?.find(
+          (access) => access.projectId === projectId,
+        );
+
+        if (projectAccess && projectAccess.accessLevel === 'viewer') {
+          res.status(403).json({
+            message:
+              'Access denied: Viewer permission. You cannot modify this project.',
+            code: 'VIEWER_ONLY_ACCESS',
+          });
+          return;
+        }
+      }
+    }
   }
 
   next();
 };
 
 /**
- * Middleware to ensure subcontractors can only access their assigned project
+ * Enhanced middleware to ensure subcontractors can only access their assigned projects
  */
 export const enforceProjectAccess = (
   req: Request,
@@ -357,12 +427,18 @@ export const enforceProjectAccess = (
     const requestedProjectId =
       req.params.projectId || req.body.projectId || req.query.projectId;
 
-    if (requestedProjectId && requestedProjectId !== req.auth.projectId) {
-      res.status(403).json({
-        message: 'Access denied: You can only access your assigned project',
-        code: 'PROJECT_ACCESS_DENIED',
-      });
-      return;
+    if (requestedProjectId) {
+      const hasAccess = req.auth.projectAccesses?.some(
+        (access) => access.projectId === requestedProjectId,
+      );
+
+      if (!hasAccess) {
+        res.status(403).json({
+          message: 'Access denied: You can only access your assigned projects',
+          code: 'PROJECT_ACCESS_DENIED',
+        });
+        return;
+      }
     }
   }
 
@@ -378,5 +454,6 @@ export const getCurrentUser = (req: Request) => {
     role: req.auth?.role,
     permissions: req.auth?.permissions,
     accessLevel: req.auth?.accessLevel,
+    projectAccesses: req.auth?.projectAccesses,
   };
 };

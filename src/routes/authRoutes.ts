@@ -14,6 +14,9 @@ import {
   validatePasswordToken,
   resendPasswordSetup,
   googleCheck,
+  checkAvailableRoles,
+  unifiedLogin,
+  unifiedForgotPassword,
 } from '../controllers/authController';
 import { auth } from '../middleware/auth';
 import { rbacAuth, getCurrentUser } from '../middleware/rbac';
@@ -97,7 +100,7 @@ router.post('/setup-password/:token', setupPassword);
  *       400:
  *         description: Invalid or expired token
  */
-router.get('/validate-password-token/:token', validatePasswordToken);
+router.get('/validate-token/:token', validatePasswordToken);
 
 /**
  * @swagger
@@ -186,6 +189,32 @@ router.post('/google-check', googleCheck);
  *         description: Invalid email
  */
 router.post('/forgot-password', forgotPassword);
+
+/**
+ * @swagger
+ * /api/auth/unified-forgot-password:
+ *   post:
+ *     summary: Unified forgot password for all user types
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               roleType:
+ *                 type: string
+ *                 enum: [user, accountant, subcontractor]
+ *     responses:
+ *       200:
+ *         description: Password reset email sent
+ *       404:
+ *         description: Account not found
+ */
+router.post('/unified-forgot-password', unifiedForgotPassword);
 
 /**
  * @swagger
@@ -418,5 +447,13 @@ router.delete('/', auth, deleteUser);
  *         description: Invalid request
  */
 router.put('/profile-picture', auth, uploadF, updateProfilePicture);
+
+// Unified Authentication Routes
+router.post('/check-roles', async (req, res) => {
+  await checkAvailableRoles(req, res);
+});
+router.post('/unified-login', async (req, res) => {
+  await unifiedLogin(req, res);
+});
 
 export default router;
