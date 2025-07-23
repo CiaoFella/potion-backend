@@ -1,6 +1,6 @@
-import express from "express";
-import { auth } from "../middleware/auth";
-import { subcontractorController } from "../controllers/subcontractorController";
+import express from 'express';
+import { auth } from '../middleware/auth';
+import { subcontractorController } from '../controllers/subcontractorController';
 
 const router = express.Router();
 
@@ -87,7 +87,7 @@ const router = express.Router();
  *       404:
  *         description: Invalid invite key
  */
-router.get("/invite/:inviteKey", subcontractorController.getByInviteKey);
+router.get('/invite/:inviteKey', subcontractorController.getByInviteKey);
 
 /**
  * @swagger
@@ -111,8 +111,10 @@ router.get("/invite/:inviteKey", subcontractorController.getByInviteKey);
  *       404:
  *         description: Invalid invite key
  */
-router.put("/invite/:inviteKey", subcontractorController.updateSubcontractorByInviteKey);
-
+router.put(
+  '/invite/:inviteKey',
+  subcontractorController.updateSubcontractorByInviteKey,
+);
 
 /**
  * @swagger
@@ -142,8 +144,10 @@ router.put("/invite/:inviteKey", subcontractorController.updateSubcontractorByIn
  *       404:
  *         description: Invalid invite key
  */
-router.put("/invite/:inviteKey/set-password", subcontractorController.setSubcontractorPasswordByInviteKey);
-
+router.put(
+  '/invite/:inviteKey/set-password',
+  subcontractorController.setSubcontractorPasswordByInviteKey,
+);
 
 /**
  * @swagger
@@ -171,7 +175,48 @@ router.put("/invite/:inviteKey/set-password", subcontractorController.setSubcont
  *       404:
  *         description: Invalid invite key
  */
-router.post("/accept-invite/:inviteKey", subcontractorController.acceptInvite);
+router.post('/accept-invite/:inviteKey', subcontractorController.acceptInvite);
+
+/**
+ * @swagger
+ * /subcontractor/login:
+ *   post:
+ *     summary: Subcontractor login
+ *     tags: [Subcontractors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *             required:
+ *               - email
+ *               - password
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                 subcontractor:
+ *                   type: object
+ *       400:
+ *         description: Invalid credentials or password not set
+ *       500:
+ *         description: Server error
+ */
+router.post('/login', subcontractorController.subcontractorLogin);
 
 // ==================== CRUD Routes ====================
 /**
@@ -203,7 +248,7 @@ router.post("/accept-invite/:inviteKey", subcontractorController.acceptInvite);
  *       401:
  *         description: Unauthorized
  */
-router.post("/", auth, subcontractorController.createSubcontractor);
+router.post('/', auth, subcontractorController.createSubcontractor);
 
 /**
  * @swagger
@@ -225,7 +270,7 @@ router.post("/", auth, subcontractorController.createSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.get("/all", auth, subcontractorController.getAllSubcontractors);
+router.get('/all', auth, subcontractorController.getAllSubcontractors);
 
 /**
  * @swagger
@@ -253,7 +298,11 @@ router.get("/all", auth, subcontractorController.getAllSubcontractors);
  *       401:
  *         description: Unauthorized
  */
-router.get("/project/:projectId", auth, subcontractorController.getSubcontractors);
+router.get(
+  '/project/:projectId',
+  auth,
+  subcontractorController.getSubcontractors,
+);
 
 /**
  * @swagger
@@ -281,7 +330,7 @@ router.get("/project/:projectId", auth, subcontractorController.getSubcontractor
  *       401:
  *         description: Unauthorized
  */
-router.get("/:id", auth, subcontractorController.getSubcontractorById);
+router.get('/:id', auth, subcontractorController.getSubcontractorById);
 
 /**
  * @swagger
@@ -311,7 +360,7 @@ router.get("/:id", auth, subcontractorController.getSubcontractorById);
  *       401:
  *         description: Unauthorized
  */
-router.put("/:id", auth, subcontractorController.updateSubcontractor);
+router.put('/:id', auth, subcontractorController.updateSubcontractor);
 
 /**
  * @swagger
@@ -335,7 +384,7 @@ router.put("/:id", auth, subcontractorController.updateSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.delete("/:id", auth, subcontractorController.deleteSubcontractor);
+router.delete('/:id', auth, subcontractorController.deleteSubcontractor);
 
 /**
  * @swagger
@@ -363,7 +412,11 @@ router.delete("/:id", auth, subcontractorController.deleteSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.post("/:id/generate-invite", auth, subcontractorController.generateInviteLink);
+router.post(
+  '/:id/generate-invite',
+  auth,
+  subcontractorController.generateInviteLink,
+);
 /**
  * @swagger
  * /subcontractor/{id}/invite:
@@ -403,6 +456,6 @@ router.post("/:id/generate-invite", auth, subcontractorController.generateInvite
  *       401:
  *         description: Unauthorized
  */
-router.post("/:id/invite", auth, subcontractorController.inviteSubcontractor);
+router.post('/:id/invite', auth, subcontractorController.inviteSubcontractor);
 
 export default router;
