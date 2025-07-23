@@ -23,6 +23,11 @@ const TransactionSchema = new mongoose.Schema(
       required: false,
       default: false,
     },
+    isExcluded: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     counterparty: {
       type: String,
     },
