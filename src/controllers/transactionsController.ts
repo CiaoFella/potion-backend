@@ -108,6 +108,7 @@ export const transactionController = {
           ...updateData,
           isUserConfirmed:
             updateData.isUserConfirmed || updateData.category ? true : false,
+          isExcluded: updateData.isExcluded ?? false,
         },
         { new: true, runValidators: true }
       );

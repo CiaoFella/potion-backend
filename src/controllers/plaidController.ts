@@ -3,6 +3,7 @@ import { PlaidService } from "../services/plaidService";
 import { PlaidItem } from "../models/PlaidItem";
 import { Transaction } from "../models/Transaction";
 import { BalanceCalculationService } from "../services/balanceCalculationService";
+import { plaidClient } from "../config/plaid";
 
 export const plaidController = {
   async createLinkToken(req: Request, res: Response): Promise<void> {
@@ -179,4 +180,39 @@ export const plaidController = {
       res.status(400).json({ error: error.message });
     }
   },
+
+  async getPlaidTransactions(req: Request, res: Response): Promise<any> {
+    const { account_id, start_date, end_date, user_id } = req.query;
+    if (!account_id || !start_date || !end_date || !user_id) {
+      res.status(400).json({ error: "An error occured, please try again later!" });
+      return;
+    };
+
+    try {
+      const plaidItem = await PlaidItem.findOne({
+        accounts: { $elemMatch: { accountId: account_id } },
+        userId: user_id,
+      });
+
+      if (!plaidItem.accessToken) {
+        res.status(400).json({ error: "An error occured, please try again later!" });
+        return;
+      };
+
+      console.log(
+        `[getPlaidTransactions] Found Plaiditem for user ${user_id} with accountId ${account_id}`
+      );
+
+      const transactions = await plaidClient.transactionsGet({
+        access_token: plaidItem.accessToken,
+        start_date: (start_date as string),
+        end_date: (end_date as string),
+      })
+
+      res.json({ plaidTransactions: transactions.data });
+    } catch (error) {
+      console.error("[getPlaidTransactions] Error:", error.message);
+      res.status(400).json({ error: error.message });
+    }
+  }
 };
