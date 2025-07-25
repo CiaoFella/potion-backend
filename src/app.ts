@@ -44,6 +44,7 @@ import analyticsRoutes from './routes/analyticsRoutes';
 import anomalyRoutes from './routes/anomalyRoutes';
 import { auth, unifiedAuth } from './middleware/auth';
 import devRoutes from './routes/devRoutes';
+import unifiedAuthRoutes from './routes/unifiedAuthRoutes';
 import {
   setupAccountantAccount,
   accountantLogin,
@@ -144,17 +145,22 @@ app.post(
 
 // Public routes (no authentication required)
 app.use('/api/auth', authRoutes); // Login, signup, password reset, etc.
+app.use('/api/unified-auth', unifiedAuthRoutes); // New unified role-based authentication
 app.use('/api/pay', stripeRoutes); // Stripe payment routes
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Public external user auth routes (setup and login) - MUST be before protected routes
-app.post('/api/accountant/setup-account', setupAccountantAccount);
-app.post('/api/accountant/login', accountantLogin);
+// LEGACY: Old external user auth routes - DEPRECATED in favor of unified auth system
+// These routes are kept for backward compatibility during transition
+app.post('/api/accountant/setup-account', setupAccountantAccount); // DEPRECATED: Use /api/unified-auth/setup-password/:token
+app.post('/api/accountant/login', accountantLogin); // DEPRECATED: Use /api/unified-auth/login
 app.post(
   '/api/subcontractor/login',
-  subcontractorController.subcontractorLogin,
+  subcontractorController.subcontractorLogin, // DEPRECATED: Use /api/unified-auth/login
 );
+
+// NEW: Unified authentication system routes (multi-role system)
+app.use('/api/unified-auth', unifiedAuthRoutes);
 
 // File upload endpoint with basic auth (will be updated for RBAC)
 app.post('/api/upload', uploadF, uploadFileController);
@@ -285,10 +291,10 @@ app.use(
   accountantRoutes,
 );
 
-// Mount subcontractor routes with RBAC
+// Mount subcontractor routes with RBAC (external users - no subscription required)
 app.use(
-  '/api/subcontractors',
-  ...protectedWithSubscription,
+  '/api/subcontractor',
+  ...protectedExternal,
   requireRole(UserRole.USER, UserRole.SUBCONTRACTOR), // Allow both users and subcontractors
   subcontractorRoutes,
 );

@@ -74,6 +74,7 @@ const sendPasswordResetEmail = async (
 };
 import { Accountant, UserAccountantAccess } from '../models/AccountantAccess';
 import { Subcontractor } from '../models/Subcontractor';
+import { SubcontractorProjectAccess } from '../models/SubcontractorProjectAccess';
 
 export const generateTokens = (userId: string): Tokens => {
   const accessToken = jwt.sign({ userId }, config.jwtSecret!, {
@@ -136,10 +137,18 @@ export const setupPassword = async (
           foundUser = accountantReset;
           userType = 'accountant';
         } else {
-          // Check subcontractors for password reset tokens
+          // Check subcontractors for password reset or setup tokens
           const subcontractor = await Subcontractor.findOne({
-            passwordResetToken: token,
-            passwordResetTokenExpiry: { $gt: new Date() },
+            $or: [
+              {
+                passwordResetToken: token,
+                passwordResetTokenExpiry: { $gt: new Date() },
+              },
+              {
+                passwordSetupToken: token,
+                passwordSetupTokenExpiry: { $gt: new Date() },
+              },
+            ],
           });
 
           if (subcontractor) {
@@ -163,8 +172,14 @@ export const setupPassword = async (
     }
 
     // Set password and clear setup token based on user type
-    const hashedPassword = await bcrypt.hash(password, 12);
-    foundUser.password = hashedPassword;
+    if (userType === 'subcontractor') {
+      // For subcontractors, set password directly - pre-save hook will hash it
+      foundUser.password = password;
+    } else {
+      // For users and accountants, hash manually (they have their own hashing logic)
+      const hashedPassword = await bcrypt.hash(password, 12);
+      foundUser.password = hashedPassword;
+    }
 
     if (userType === 'user') {
       foundUser.isPasswordSet = true;
@@ -223,7 +238,9 @@ export const setupPassword = async (
         }
         await foundUser.save();
       } else if (userType === 'subcontractor') {
-        // For subcontractors, clear the password reset token
+        // For subcontractors, clear both password setup and reset tokens
+        foundUser.passwordSetupToken = undefined;
+        foundUser.passwordSetupTokenExpiry = undefined;
         foundUser.passwordResetToken = undefined;
         foundUser.passwordResetTokenExpiry = undefined;
         foundUser.isPasswordSet = true;
@@ -324,9 +341,29 @@ export const validatePasswordToken = async (
         foundUser = accountantAccess.accountant;
         userType = 'accountant';
       } else {
-        // Note: Subcontractors use a different invitation system (inviteKey)
-        // They don't use password setup tokens like users and accountants
-        console.log('No valid token found for user or accountant');
+        // Check subcontractors for password setup or reset tokens
+        const subcontractor = await Subcontractor.findOne({
+          $or: [
+            {
+              passwordSetupToken: token,
+              passwordSetupTokenExpiry: { $gt: new Date() },
+            },
+            {
+              passwordResetToken: token,
+              passwordResetTokenExpiry: { $gt: new Date() },
+            },
+          ],
+        }).select('fullName email password isPasswordSet');
+
+        if (subcontractor) {
+          console.log('Found valid subcontractor token');
+          foundUser = subcontractor;
+          userType = 'subcontractor';
+        } else {
+          console.log(
+            'No valid token found for user, accountant, or subcontractor',
+          );
+        }
       }
     }
 
@@ -354,15 +391,25 @@ export const validatePasswordToken = async (
                 : '',
               email: foundUser.email,
             }
-          : {
-              firstName: foundUser.fullName
-                ? foundUser.fullName.split(' ')[0]
-                : '',
-              lastName: foundUser.fullName
-                ? foundUser.fullName.split(' ').slice(1).join(' ')
-                : '',
-              email: foundUser.email,
-            };
+          : userType === 'subcontractor'
+            ? {
+                firstName: foundUser.fullName
+                  ? foundUser.fullName.split(' ')[0]
+                  : '',
+                lastName: foundUser.fullName
+                  ? foundUser.fullName.split(' ').slice(1).join(' ')
+                  : '',
+                email: foundUser.email,
+              }
+            : {
+                firstName: foundUser.fullName
+                  ? foundUser.fullName.split(' ')[0]
+                  : '',
+                lastName: foundUser.fullName
+                  ? foundUser.fullName.split(' ').slice(1).join(' ')
+                  : '',
+                email: foundUser.email,
+              };
 
     res.json({
       valid: true,
@@ -1099,17 +1146,23 @@ export const checkAvailableRoles = async (req: Request, res: Response) => {
       });
     }
 
-    // Check for subcontractor
+    // Check for subcontractor (unified approach - one subcontractor per email)
     const subcontractor = await Subcontractor.findOne({
       email: email.toLowerCase(),
-    }).populate('createdBy', 'firstName lastName businessName');
+    });
     if (subcontractor) {
-      // Get project count for this subcontractor
-      const SubcontractorProjectAccess = require('../models/SubcontractorProjectAccess');
-      const projectCount = await SubcontractorProjectAccess.countDocuments({
-        subcontractorId: subcontractor._id,
+      // Get project count and business owner count for this subcontractor
+      const projectAccesses = await SubcontractorProjectAccess.find({
+        subcontractor: subcontractor._id,
         status: 'active',
-      });
+      }).populate('user', 'firstName lastName businessName');
+
+      const projectCount = projectAccesses.length;
+      const businessOwners = projectAccesses.map((access: any) => ({
+        id: access.user._id,
+        name: `${access.user.firstName} ${access.user.lastName}`.trim(),
+        businessName: access.user.businessName,
+      }));
 
       availableRoles.push({
         type: 'subcontractor',
@@ -1118,9 +1171,7 @@ export const checkAvailableRoles = async (req: Request, res: Response) => {
         email: subcontractor.email,
         businessName: subcontractor.businessName,
         projectCount,
-        clientName: subcontractor.createdBy
-          ? `${(subcontractor.createdBy as any).firstName} ${(subcontractor.createdBy as any).lastName}`.trim()
-          : undefined,
+        businessOwners, // Multiple business owners for unified subcontractor
         hasPassword: !!subcontractor.password,
       });
     }
@@ -1268,6 +1319,15 @@ export const unifiedLogin = async (req: Request, res: Response) => {
           subcontractor.email.toLowerCase() !== email.toLowerCase()
         ) {
           return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Check if password is set
+        if (!subcontractor.password) {
+          return res.status(401).json({
+            error:
+              'Password not set. Please check your email for setup instructions.',
+            passwordNotSet: true,
+          });
         }
 
         const isSubcontractorPasswordValid = await bcrypt.compare(

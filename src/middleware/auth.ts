@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { config } from "../config/config";
-import { activityTracker } from "./tracker";
-import { globalAuthMiddleware } from "./accountantAuth";
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { config } from '../config/config';
+import { activityTracker } from './tracker';
+import { globalAuthMiddleware } from './accountantAuth';
 
 interface UserPayload {
   userId: string;
@@ -22,30 +22,53 @@ declare global {
   }
 }
 
-// The original auth middleware, kept for backward compatibility
+// The original auth middleware, enhanced to handle multiple user types
 export const auth = (req: Request, res: Response, next: NextFunction): void => {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
+  const token = req.header('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
-    res.status(401).json({ message: "No token, authorization denied" });
+    res.status(401).json({ message: 'No token, authorization denied' });
     return;
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as UserPayload;
-    // Set both userId and id for maximum compatibility
-    req.user = {
-      userId: decoded.userId,
-      id: decoded.userId
-    };
-    activityTracker(req, res, next)
+    const decoded = jwt.verify(token, config.jwtSecret) as any;
+
+    // Handle different token types - business owners (userId) and accountants (accountantId)
+    if (decoded.userId) {
+      // Regular business owner token
+      req.user = {
+        userId: decoded.userId,
+        id: decoded.userId,
+      };
+    } else if (decoded.accountantId) {
+      // This should not happen for accountant-management routes (only business owners should access these)
+      // But we'll handle it gracefully for backwards compatibility
+      res.status(403).json({
+        message:
+          'Access denied. Business owner account required for this operation.',
+        code: 'BUSINESS_OWNER_REQUIRED',
+      });
+      return;
+    } else {
+      // Unknown token format
+      res.status(401).json({ message: 'Invalid token format' });
+      return;
+    }
+
+    activityTracker(req, res, next);
   } catch (error) {
-    res.status(401).json({ message: "Token is not valid" });
+    console.error('Auth middleware error:', error);
+    res.status(401).json({ message: 'Token is not valid' });
   }
 };
 
 // Global auth that supports both user and accountant tokens
-export const unifiedAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const unifiedAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   await globalAuthMiddleware(req, res, (err) => {
     if (err) return next(err);
     activityTracker(req, res, next);

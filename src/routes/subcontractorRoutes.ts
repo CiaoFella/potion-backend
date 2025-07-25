@@ -232,6 +232,63 @@ router.post('/login', subcontractorController.subcontractorLogin);
 // ==================== CRUD Routes ====================
 /**
  * @swagger
+ * /subcontractor/invite/{id}:
+ *   post:
+ *     summary: Invite a subcontractor to a project
+ *     tags: [Subcontractors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Project ID (optional - can be empty string for general invitation)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               note:
+ *                 type: string
+ *               passkey:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Subcontractor invited successfully
+ *       400:
+ *         description: Invalid input
+ *       500:
+ *         description: Server error
+ */
+router.post('/invite/:id', async (req, res) => {
+  console.log('\n🎯 [DEBUG] POST /subcontractor/invite/:id route hit');
+  console.log('[DEBUG] Params:', req.params);
+  console.log('[DEBUG] Body:', JSON.stringify(req.body, null, 2));
+  console.log('[DEBUG] User ID:', req.user?.userId);
+  console.log('[DEBUG] Headers:', {
+    authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'None',
+    'content-type': req.headers['content-type'],
+  });
+
+  try {
+    await subcontractorController.inviteSubcontractor(req, res);
+  } catch (error) {
+    console.error('[DEBUG] ❌ Error in POST /invite/:id route:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /subcontractor:
  *   post:
  *     summary: Create a new subcontractor
@@ -239,27 +296,48 @@ router.post('/login', subcontractorController.subcontractorLogin);
  *     security:
  *       - bearerAuth: []
  *     requestBody:
- *       required: false
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Subcontractor'
+ *             type: object
+ *             required:
+ *               - email
+ *               - fullName
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               fullName:
+ *                 type: string
+ *               isUSCitizen:
+ *                 type: boolean
+ *               paymentInformation:
+ *                 type: object
  *     responses:
  *       201:
  *         description: Subcontractor created successfully
- *         content:
- *           application/json:
- *             example:
- *               firstName: "Ibrahim"
- *               lastName: "Bileri"
- *               email: "ibrahim@example.com"
- *               status: "active"
  *       400:
- *         description: Invalid payment information
- *       401:
- *         description: Unauthorized
+ *         description: Invalid input
+ *       500:
+ *         description: Server error
  */
-router.post('/', subcontractorController.createSubcontractor);
+router.post('/', async (req, res) => {
+  console.log('\n📝 [DEBUG] POST /subcontractor/ route hit');
+  console.log('[DEBUG] Body:', JSON.stringify(req.body, null, 2));
+  console.log('[DEBUG] User ID:', req.user?.userId);
+  console.log('[DEBUG] Headers:', {
+    authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'None',
+    'content-type': req.headers['content-type'],
+  });
+
+  try {
+    await subcontractorController.createSubcontractor(req, res);
+  } catch (error) {
+    console.error('[DEBUG] ❌ Error in POST / route:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 /**
  * @swagger
@@ -281,7 +359,22 @@ router.post('/', subcontractorController.createSubcontractor);
  *       401:
  *         description: Unauthorized
  */
-router.get('/all', subcontractorController.getAllSubcontractors);
+router.get('/all', async (req, res) => {
+  console.log('\n🚀 [DEBUG] /subcontractor/all route hit');
+  console.log('[DEBUG] User ID:', req.user?.userId);
+  console.log('[DEBUG] Auth data:', req.auth);
+  console.log('[DEBUG] Request headers:', {
+    authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'None',
+    'user-agent': req.headers['user-agent'],
+  });
+
+  try {
+    await subcontractorController.getAllSubcontractors(req, res);
+  } catch (error) {
+    console.error('[DEBUG] Error in /all route:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 /**
  * @swagger

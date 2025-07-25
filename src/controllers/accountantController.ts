@@ -8,180 +8,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/config';
 import { reactEmailService } from '../services/reactEmailService';
 import type { AccountantLoginReadyProps } from '../templates/react-email/accountant-login-ready';
-
-// Email service functions
-const sendAccountantLoginReadyEmail = async (
-  email: string,
-  firstName: string,
-  clientsCount?: number,
-  clientNames?: string[],
-) => {
-  try {
-    const loginUrl = `${config.frontURL}/login`;
-
-    const props: AccountantLoginReadyProps = {
-      firstName: firstName || 'there',
-      loginUrl,
-      clientsCount,
-      clientNames,
-    };
-
-    const { subject, html } = await reactEmailService.renderTemplate(
-      'accountant-login-ready',
-      props,
-    );
-
-    return sendEmail({
-      to: email,
-      subject,
-      html,
-    });
-  } catch (error) {
-    console.error('Error sending accountant login ready email:', error);
-
-    // Fallback to basic HTML email
-    return sendEmail({
-      to: email,
-      subject: 'Your Potion accountant access is ready - You can now login!',
-      html: `
-                <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1>Hi ${firstName},</h1>
-                    <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
-                    <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
-                    ${
-                      clientsCount && clientsCount > 0
-                        ? `<p><strong>You have access to ${clientsCount} client${clientsCount > 1 ? 's' : ''}:</strong>
-                    ${clientNames && clientNames.length > 0 ? `<br>${clientNames.slice(0, 3).join(', ')}${clientNames.length > 3 ? ` and ${clientNames.length - 3} more` : ''}` : ''}</p>`
-                        : ''
-                    }
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
-                    </div>
-                    <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
-                </div>
-            `,
-    });
-  }
-};
-
-const sendAccountantInvitationEmail = async (
-  email: string,
-  clientName: string,
-  inviteUrl: string,
-  accountantName?: string,
-  note?: string, // Add note parameter
-) => {
-  try {
-    const props = {
-      clientName,
-      inviteUrl,
-      accountantName: accountantName || 'there',
-      note, // Pass note to template
-    };
-
-    const { subject, html } = await reactEmailService.renderTemplate(
-      'accountant-invitation',
-      props,
-    );
-
-    return sendEmail({
-      to: email,
-      subject,
-      html,
-    });
-  } catch (error) {
-    console.error('Error sending accountant invitation email:', error);
-
-    // Fallback to basic HTML email
-    return sendEmail({
-      to: email,
-      subject: 'Invitation to Access Financial Records - Potion Accountant',
-      html: `
-        <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <div style="text-align: center; padding: 40px 20px 30px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-            <h1 style="font-size: 28px; font-weight: bold; margin: 0;">POTION</h1>
-            <p style="color: #6b7280; margin: 8px 0 0;">Professional Accounting Platform</p>
-          </div>
-          <div style="padding: 40px 30px;">
-            <h2 style="font-size: 18px; margin: 0 0 20px;">Hello ${accountantName || 'there'},</h2>
-            <p><strong>${clientName}</strong> has invited you to access their books as an accountant user through Potion Accountant.</p>
-            ${note ? `<div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;"><p style="font-weight: 600; margin: 0 0 8px;">Personal Message from ${clientName}:</p><p style="margin: 0; font-style: italic;">"${note}"</p></div>` : ''}
-            <p>As an accounting professional, there's so much more waiting for you in Potion Accountant besides your client's books. As the one place to manage all of your clients and work, Potion Accountant provides you with a suite of tools designed specifically for accountants to help you.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${inviteUrl}" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Accept Invitation</a>
-            </div>
-            <p style="color: #6b7280; font-size: 14px;">Learn more about the tools and features available to you in Potion Accountant. Ready to get started? Accept your invite to test drive the tools now.</p>
-          </div>
-        </div>
-      `,
-    });
-  }
-};
-
-// Send email to existing accountant when added to new client
-const sendAccountantAddedToClientEmail = async (
-  email: string,
-  clientName: string,
-  accountantName?: string,
-  note?: string,
-) => {
-  try {
-    const loginUrl = `${config.frontURL}/login`;
-
-    const props = {
-      clientName,
-      loginUrl,
-      accountantName: accountantName || 'there',
-      note,
-    };
-
-    // We'll create this template later, for now use the existing invitation template
-    // but modify the subject and content to reflect that they're being added to existing account
-    const { subject, html } = await reactEmailService.renderTemplate(
-      'accountant-invitation',
-      {
-        ...props,
-        inviteUrl: loginUrl, // Use login URL instead of setup URL
-      },
-    );
-
-    return sendEmail({
-      to: email,
-      subject: `New Client Access Added - ${clientName}`,
-      html: html
-        .replace(
-          'has invited you to access their books as an accountant user through Potion Accountant.',
-          'has added you to their account. You can now access their books using your existing Potion Accountant login.',
-        )
-        .replace('Accept Invitation', 'Login to Access'),
-    });
-  } catch (error) {
-    console.error('Error sending accountant added to client email:', error);
-
-    // Fallback email
-    return sendEmail({
-      to: email,
-      subject: `New Client Access Added - ${clientName}`,
-      html: `
-        <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <div style="text-align: center; padding: 40px 20px 30px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-            <h1 style="font-size: 28px; font-weight: bold; margin: 0;">POTION</h1>
-            <p style="color: #6b7280; margin: 8px 0 0;">Professional Accounting Platform</p>
-          </div>
-          <div style="padding: 40px 30px;">
-            <h2 style="font-size: 18px; margin: 0 0 20px;">Hello ${accountantName || 'there'},</h2>
-            <p><strong>${clientName}</strong> has added you to their account. You can now access their books using your existing Potion Accountant login.</p>
-            ${note ? `<div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;"><p style="font-weight: 600; margin: 0 0 8px;">Personal Message from ${clientName}:</p><p style="margin: 0; font-style: italic;">"${note}"</p></div>` : ''}
-                         <div style="text-align: center; margin: 30px 0;">
-               <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Login to Access</a>
-             </div>
-            <p style="color: #6b7280; font-size: 14px;">You can now manage multiple clients from your Potion Accountant dashboard.</p>
-          </div>
-        </div>
-      `,
-    });
-  }
-};
+import type { AccountantRemovedProps } from '../templates/react-email/accountant-removed';
 
 // Invite an accountant
 export const inviteAccountant = async (
@@ -210,7 +37,6 @@ export const inviteAccountant = async (
     // Check if accountant already exists
     let accountant = await Accountant.findOne({ email });
     let isNewAccountant = !accountant;
-    let accountantHasPassword = accountant && accountant.password;
 
     // If accountant doesn't exist, create one
     if (!accountant) {
@@ -234,6 +60,16 @@ export const inviteAccountant = async (
       });
     }
 
+    // Check if accountant has any existing active relationships with other clients
+    const existingActiveRelationships = await UserAccountantAccess.find({
+      accountant: accountant._id,
+      status: 'active',
+    });
+
+    const hasExistingClients = existingActiveRelationships.length > 0;
+    const shouldSendSetupEmail =
+      isNewAccountant || (!accountant.password && !hasExistingClients);
+
     // Create the access relationship
     const userAccess = new UserAccountantAccess({
       accountant: accountant._id,
@@ -250,40 +86,85 @@ export const inviteAccountant = async (
     accountant.userAccesses.push(userAccess._id);
     await accountant.save();
 
-    // Send appropriate email based on whether accountant already has password
-    if (accountantHasPassword) {
-      // Existing accountant with password - just notify them they've been added
-      await sendAccountantAddedToClientEmail(
-        email,
-        user.firstName,
-        accountant.name,
-        note,
-      );
+    // Send invite email
+    if (shouldSendSetupEmail) {
+      // First time invitation - send setup email
+      const inviteLink = `${config.frontURL}/accountant/setup-account/${inviteToken}`;
+
+      try {
+        await sendEmail({
+          to: email,
+          subject:
+            'Your Potion accountant access is ready - You can now login!',
+          html: `
+                <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h1>Hi ${name || 'there'},</h1>
+                    <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
+                    <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
+                    ${
+                      existingActiveRelationships.length > 0
+                        ? `<p><strong>You have access to ${existingActiveRelationships.length} client${existingActiveRelationships.length > 1 ? 's' : ''}:</strong>
+                    ${existingActiveRelationships.map((access) => `${(access.user as any).firstName} ${(access.user as any).lastName}`).join(', ')}${existingActiveRelationships.length > 3 ? ` and ${existingActiveRelationships.length - 3} more` : ''}`
+                        : ''
+                    }
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
+                    </div>
+                    <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
+                </div>
+            `,
+        });
+      } catch (emailError) {
+        console.error('Error sending setup invitation email:', emailError);
+        throw emailError;
+      }
     } else {
-      // New accountant or existing without password - send setup email
-      await sendAccountantInvitationEmail(
-        email,
-        user.firstName,
-        `${config.frontURL}/setup-password/${inviteToken}`,
-        name,
-        note,
-      );
+      // Existing accountant with clients - send "added to new client" email
+      try {
+        await sendEmail({
+          to: email,
+          subject: `New Client Access - ${user.firstName} ${user.lastName}`,
+          html: `
+            <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1>Hi ${accountant.name.split(' ')[0]},</h1>
+              <p><strong>${user.firstName} ${user.lastName}</strong>${user.businessName ? ` from ${user.businessName}` : ''} has granted you ${accessLevel} access to their financial records.</p>
+              <p>You can now access their account using your existing Potion login credentials.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Access</a>
+              </div>
+              <p style="color: #666; font-size: 14px;">You can now manage multiple clients from your Potion dashboard.</p>
+            </div>
+          `,
+        });
+        console.log(
+          '✅ New client notification email sent successfully to:',
+          email,
+        );
+      } catch (emailError) {
+        console.error(
+          '❌ Error sending new client notification email:',
+          emailError,
+        );
+        throw emailError;
+      }
     }
 
     res.status(201).json({
-      message: 'Invitation sent successfully',
-      accountant: {
-        id: accountant._id,
-        email: accountant.email,
-        name: accountant.name,
+      message: 'Accountant invited successfully',
+      userAccess: {
+        id: userAccess._id,
+        accountant: {
+          id: accountant._id,
+          name: accountant.name,
+          email: accountant.email,
+        },
         accessLevel,
-        status: 'pending',
-        createdAt: userAccess.createdAt,
+        status: userAccess.status,
       },
     });
   } catch (error) {
     console.error('Error inviting accountant:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error });
   }
 };
 
@@ -338,12 +219,27 @@ export const setupAccountantAccount = async (
         `${(access.user as any).firstName} ${(access.user as any).lastName}`.trim(),
       );
 
-      await sendAccountantLoginReadyEmail(
-        accountant.email,
-        accountant.name.split(' ')[0] || accountant.name,
-        userAccesses.length,
-        clientNames,
-      );
+      await sendEmail({
+        to: accountant.email,
+        subject: 'Your Potion accountant access is ready - You can now login!',
+        html: `
+                <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h1>Hi ${accountant.name.split(' ')[0] || accountant.name},</h1>
+                    <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
+                    <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
+                    ${
+                      clientNames.length > 0
+                        ? `<p><strong>You have access to ${clientNames.length} client${clientNames.length > 1 ? 's' : ''}:</strong>
+                    ${clientNames.slice(0, 3).join(', ')}${clientNames.length > 3 ? ` and ${clientNames.length - 3} more` : ''}</p>`
+                        : ''
+                    }
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
+                    </div>
+                    <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
+                </div>
+            `,
+      });
     }
 
     res.json({
@@ -560,7 +456,7 @@ export const toggleAccountantStatus = async (
   }
 };
 
-// Delete accountant access
+// Delete an accountant's access
 export const deleteAccountant = async (
   req: Request & { user?: { userId: string } },
   res: Response,
@@ -573,28 +469,50 @@ export const deleteAccountant = async (
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Find the access relationship
+    // Find the access relationship with populated user and accountant
     const userAccess = await UserAccountantAccess.findOne({
       _id: accessId,
       user: userId,
-    });
+    })
+      .populate('user')
+      .populate('accountant');
 
     if (!userAccess) {
       return res.status(404).json({ message: 'Accountant access not found' });
     }
 
-    // Remove the access from accountant's userAccesses array
-    await Accountant.updateOne(
-      { _id: userAccess.accountant },
-      { $pull: { userAccesses: userAccess._id } },
-    );
-
     // Delete the access relationship
     await UserAccountantAccess.deleteOne({ _id: userAccess._id });
 
+    // Send removal email
+    const accountant = userAccess.accountant as any;
+    const user = userAccess.user as any;
+
+    await sendEmail({
+      to: accountant.email,
+      subject: `${user.firstName} has removed your access - Potion Accountant`,
+      html: `
+        <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="text-align: center; padding: 40px 20px 30px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+            <h1 style="font-size: 28px; font-weight: bold; margin: 0;">POTION</h1>
+            <p style="color: #6b7280; margin: 8px 0 0;">Professional Accounting Platform</p>
+          </div>
+          <div style="padding: 40px 30px;">
+            <h2 style="font-size: 18px; margin: 0 0 20px;">Hello ${accountant.name},</h2>
+            <p><strong>${user.firstName}</strong> has removed your access to their books as an accountant user through Potion Accountant.</p>
+            <p>You will no longer be able to access their financial data or reports.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Login to Your Dashboard</a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">If you believe this was a mistake or need further assistance, please contact the client directly.</p>
+          </div>
+        </div>
+      `,
+    });
+
     res.json({ message: 'Accountant access deleted successfully' });
   } catch (error) {
-    console.error('Error deleting accountant access:', error);
+    console.error('Error deleting accountant:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -648,13 +566,27 @@ export const resendInvitation = async (
     // Send invite email again
     const inviteUrl = `${config.frontURL}/setup-password/${inviteToken}`;
 
-    await sendAccountantInvitationEmail(
-      accountant.email,
-      user.firstName,
-      inviteUrl,
-      accountant.name,
-      undefined, // Note is not available in resend, pass undefined
-    );
+    await sendEmail({
+      to: accountant.email,
+      subject: 'Your Potion accountant access is ready - You can now login!',
+      html: `
+                <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h1>Hi ${accountant.name.split(' ')[0] || accountant.name},</h1>
+                    <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
+                    <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
+                    ${
+                      isNewAccountant
+                        ? `<p><strong>You have access to ${isNewAccountant ? '1' : '0'} client${isNewAccountant ? 's' : ''}:</strong>
+                    ${isNewAccountant ? `${user.firstName} ${user.lastName}` : ''}</p>`
+                        : ''
+                    }
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${inviteUrl}" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
+                    </div>
+                    <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
+                </div>
+            `,
+    });
 
     res.json({ message: 'Invitation resent successfully' });
   } catch (error) {

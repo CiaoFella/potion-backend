@@ -2,9 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/config';
 import { User } from '../models/User';
-import { Accountant, UserAccountantAccess } from '../models/AccountantAccess';
+// Legacy imports - using dynamic imports to avoid issues during transition
+// import { Accountant, UserAccountantAccess } from '../models/AccountantAccess';
 import { Subcontractor } from '../models/Subcontractor';
 import { SubcontractorProjectAccess } from '../models/SubcontractorProjectAccess';
+import { UserRoles, UserRoleType, AccessLevel } from '../models/UserRoles';
 
 // Define all user types and their capabilities
 export enum UserRole {
@@ -68,6 +70,22 @@ declare global {
         }>; // For subcontractors with multi-project access
         subcontractorId?: string; // For subcontractor context
         accountantId?: string; // For accountant context
+
+        // New unified system fields
+        email?: string;
+        currentRole?: {
+          id: string;
+          type: UserRoleType;
+          accessLevel: AccessLevel;
+          businessOwnerId?: string;
+          permissions: string[];
+        };
+        availableRoles?: Array<{
+          id: string;
+          type: UserRoleType;
+          businessOwnerName?: string;
+          accessLevel: AccessLevel;
+        }>;
       };
       user?: {
         userId: string;
@@ -83,10 +101,13 @@ interface TokenPayload {
   accountantId?: string;
   subcontractorId?: string;
   adminId?: string;
+  // New unified system fields
+  roleId?: string; // The specific UserRoles document ID
+  email?: string;
 }
 
 /**
- * Unified RBAC middleware that handles all user types
+ * Unified RBAC middleware that handles both old and new systems
  */
 export const rbacAuth = async (
   req: Request,
@@ -106,14 +127,17 @@ export const rbacAuth = async (
       return;
     }
 
-    // Decode token to determine user type
+    // Decode token to determine authentication type
     const decoded = jwt.verify(token, config.jwtSecret!) as TokenPayload;
 
-    if (decoded.userId) {
-      // Regular user token
+    // Check if this is a new unified system token
+    if (decoded.roleId && decoded.userId) {
+      await handleUnifiedAuth(decoded, req, res);
+    } else if (decoded.userId) {
+      // Regular user token (legacy)
       await handleUserAuth(decoded.userId, req, res);
     } else if (decoded.accountantId) {
-      // Accountant token
+      // Accountant token (legacy)
       await handleAccountantAuth(
         decoded.accountantId,
         userIdFromHeader,
@@ -121,7 +145,7 @@ export const rbacAuth = async (
         res,
       );
     } else if (decoded.subcontractorId) {
-      // Subcontractor token
+      // Subcontractor token (legacy)
       await handleSubcontractorAuth(
         decoded.subcontractorId,
         projectIdFromHeader,
@@ -129,7 +153,7 @@ export const rbacAuth = async (
         res,
       );
     } else if (decoded.adminId) {
-      // Admin token
+      // Admin token (legacy)
       await handleAdminAuth(decoded.adminId, req, res);
     } else {
       res.status(401).json({
@@ -150,7 +174,176 @@ export const rbacAuth = async (
 };
 
 /**
- * Handle regular user authentication
+ * Handle new unified authentication system
+ */
+async function handleUnifiedAuth(
+  decoded: TokenPayload,
+  req: Request,
+  res: Response,
+): Promise<void> {
+  // Find the user
+  const user = await User.findById(decoded.userId);
+  if (!user) {
+    res.status(401).json({
+      message: 'User not found',
+      code: 'USER_NOT_FOUND',
+    });
+    return;
+  }
+
+  // Find the specific role being used
+  const currentRole = await UserRoles.findById(decoded.roleId)
+    .populate('businessOwner', 'firstName lastName businessName email')
+    .select('+password');
+
+  if (!currentRole || currentRole.user.toString() !== decoded.userId) {
+    res.status(401).json({
+      message: 'Invalid role or insufficient permissions',
+      code: 'INVALID_ROLE',
+    });
+    return;
+  }
+
+  // Check if role is active
+  if (currentRole.status !== 'active') {
+    res.status(403).json({
+      message: 'Role is not active',
+      code: 'ROLE_INACTIVE',
+      status: currentRole.status,
+    });
+    return;
+  }
+
+  // Get all available roles for this user
+  const availableRoles = await UserRoles.find({
+    user: decoded.userId,
+    deleted: false,
+    status: { $in: ['invited', 'active'] },
+  })
+    .populate('businessOwner', 'firstName lastName businessName')
+    .select('roleType accessLevel businessOwner');
+
+  // Build permissions array
+  const permissions = getUnifiedPermissions(
+    currentRole.roleType,
+    currentRole.accessLevel,
+  );
+
+  // Map role type to legacy UserRole for compatibility
+  const legacyRole = mapRoleTypeToLegacy(currentRole.roleType);
+
+  // Set auth context with both old and new fields
+  const authData = {
+    userId: decoded.userId!,
+    role: legacyRole,
+    permissions: ROLE_PERMISSIONS[legacyRole],
+    accessLevel: (currentRole.accessLevel === AccessLevel.VIEWER
+      ? 'read'
+      : 'edit') as 'read' | 'edit',
+
+    // New unified system fields
+    email: user.email,
+    currentRole: {
+      id: currentRole._id.toString(),
+      type: currentRole.roleType,
+      accessLevel: currentRole.accessLevel,
+      businessOwnerId: currentRole.businessOwner?._id.toString(),
+      permissions,
+    },
+    availableRoles: availableRoles.map((role) => ({
+      id: role._id.toString(),
+      type: role.roleType,
+      businessOwnerName: role.businessOwner
+        ? `${(role.businessOwner as any).firstName} ${(role.businessOwner as any).lastName}`.trim() ||
+          (role.businessOwner as any).businessName
+        : undefined,
+      accessLevel: role.accessLevel,
+    })),
+  };
+
+  req.auth = authData;
+
+  // Set user context for data filtering
+  const targetUserId =
+    currentRole.roleType === UserRoleType.BUSINESS_OWNER
+      ? decoded.userId!
+      : currentRole.businessOwner?._id.toString() || decoded.userId!;
+
+  req.user = {
+    userId: targetUserId,
+    id: targetUserId,
+    createdBy: targetUserId,
+  };
+
+  // Update last accessed time
+  currentRole.lastAccessed = new Date();
+  await currentRole.save();
+}
+
+/**
+ * Get permissions for unified system
+ */
+function getUnifiedPermissions(
+  roleType: UserRoleType,
+  accessLevel: AccessLevel,
+): string[] {
+  const permissionMatrix = {
+    [UserRoleType.BUSINESS_OWNER]: [
+      'read',
+      'write',
+      'delete',
+      'manage_team',
+      'billing',
+      'invite_users',
+    ],
+    [UserRoleType.ACCOUNTANT]: {
+      [AccessLevel.VIEWER]: ['read'],
+      [AccessLevel.CONTRIBUTOR]: ['read', 'write'],
+      [AccessLevel.EDITOR]: ['read', 'write', 'manage_data'],
+      [AccessLevel.ADMIN]: ['read', 'write', 'manage_data', 'manage_team'],
+    },
+    [UserRoleType.SUBCONTRACTOR]: {
+      [AccessLevel.VIEWER]: ['read'],
+      [AccessLevel.CONTRIBUTOR]: ['read', 'write', 'manage_tasks'],
+      [AccessLevel.EDITOR]: ['read', 'write', 'manage_tasks', 'manage_data'],
+      [AccessLevel.ADMIN]: ['read', 'write', 'manage_tasks', 'manage_data'],
+    },
+    [UserRoleType.ADMIN]: [
+      'read',
+      'write',
+      'delete',
+      'manage_team',
+      'billing',
+      'system_admin',
+      'invite_users',
+    ],
+  };
+
+  const rolePermissions = permissionMatrix[roleType];
+
+  if (Array.isArray(rolePermissions)) {
+    return rolePermissions;
+  }
+
+  return rolePermissions[accessLevel] || [];
+}
+
+/**
+ * Map new role types to legacy role enum
+ */
+function mapRoleTypeToLegacy(roleType: UserRoleType): UserRole {
+  const mapping = {
+    [UserRoleType.BUSINESS_OWNER]: UserRole.USER,
+    [UserRoleType.ACCOUNTANT]: UserRole.ACCOUNTANT,
+    [UserRoleType.SUBCONTRACTOR]: UserRole.SUBCONTRACTOR,
+    [UserRoleType.ADMIN]: UserRole.ADMIN,
+  };
+
+  return mapping[roleType] || UserRole.USER;
+}
+
+/**
+ * Handle regular user authentication (legacy)
  */
 async function handleUserAuth(
   userId: string,
@@ -177,7 +370,7 @@ async function handleUserAuth(
 }
 
 /**
- * Handle accountant authentication
+ * Handle accountant authentication (legacy) - using dynamic imports
  */
 async function handleAccountantAuth(
   accountantId: string,
@@ -185,59 +378,144 @@ async function handleAccountantAuth(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const accountant = await Accountant.findById(accountantId);
-  if (!accountant) {
-    res.status(401).json({ message: 'Accountant not found' });
-    return;
-  }
+  try {
+    // Dynamic import to avoid module loading issues during transition
+    const { Accountant, UserAccountantAccess } = await import(
+      '../models/AccountantAccess'
+    );
 
-  if (!userIdFromHeader) {
-    res.status(400).json({
-      message: 'X-User-ID header required for accountant access',
-      code: 'MISSING_USER_ID_HEADER',
+    const accountant = await Accountant.findById(accountantId);
+    if (!accountant) {
+      res.status(401).json({ message: 'Accountant not found' });
+      return;
+    }
+
+    if (!userIdFromHeader) {
+      res.status(400).json({
+        message: 'X-User-ID header required for accountant access',
+        code: 'MISSING_USER_ID_HEADER',
+      });
+      return;
+    }
+
+    // Verify accountant has access to the specified user
+    const userAccess = await UserAccountantAccess.findOne({
+      accountant: accountantId,
+      user: userIdFromHeader,
+      status: 'active',
     });
-    return;
-  }
 
-  // Verify accountant has access to the specified user
-  const userAccess = await UserAccountantAccess.findOne({
-    accountant: accountantId,
-    user: userIdFromHeader,
-    status: 'active',
-  });
+    if (!userAccess) {
+      res.status(403).json({
+        message: "You don't have access to this user's data",
+        code: 'ACCESS_DENIED',
+      });
+      return;
+    }
 
-  if (!userAccess) {
-    res.status(403).json({
-      message: "You don't have access to this user's data",
-      code: 'ACCESS_DENIED',
+    // Set permissions based on access level
+    const permissions =
+      userAccess.accessLevel === 'read'
+        ? [Permission.READ_CLIENT_DATA]
+        : [Permission.READ_CLIENT_DATA, Permission.WRITE_CLIENT_DATA];
+
+    // Build unified auth fields for compatibility with new system
+    const currentBusinessOwner = await User.findById(userIdFromHeader);
+
+    // Get all clients this accountant has access to (for availableRoles)
+    const allUserAccess = await UserAccountantAccess.find({
+      accountant: accountantId,
+      status: 'active',
+    }).populate('user', 'firstName lastName businessName email');
+
+    console.log(
+      '🔍 [RBAC] Accountant auth - Found user access records:',
+      allUserAccess.length,
+    );
+    console.log(
+      '🔍 [RBAC] Accountant auth - User ID from header:',
+      userIdFromHeader,
+    );
+    console.log('🔍 [RBAC] Accountant auth - Accountant ID:', accountantId);
+
+    const availableRoles = allUserAccess.map((access) => {
+      const businessOwner = access.user as any;
+      const role = {
+        id: access._id.toString(), // Use the access ID as role ID for legacy compatibility
+        type: UserRoleType.ACCOUNTANT,
+        businessOwnerName:
+          businessOwner.businessName ||
+          `${businessOwner.firstName} ${businessOwner.lastName}`.trim(),
+        accessLevel:
+          access.accessLevel === 'read'
+            ? AccessLevel.VIEWER
+            : AccessLevel.CONTRIBUTOR,
+      };
+      console.log('🔍 [RBAC] Accountant auth - Created role:', role);
+      return role;
     });
-    return;
+
+    const currentRoleAccess = availableRoles.find((role) =>
+      allUserAccess.find(
+        (access) =>
+          access._id.toString() === role.id &&
+          access.user._id.toString() === userIdFromHeader,
+      ),
+    );
+
+    console.log(
+      '🔍 [RBAC] Accountant auth - Current role access:',
+      currentRoleAccess,
+    );
+    console.log(
+      '🔍 [RBAC] Accountant auth - Available roles count:',
+      availableRoles.length,
+    );
+
+    const authData = {
+      userId: userIdFromHeader,
+      role: UserRole.ACCOUNTANT,
+      permissions,
+      accessLevel: userAccess.accessLevel,
+      targetUserId: userIdFromHeader,
+      accountantId,
+
+      // New unified system fields for compatibility
+      email: accountant.email,
+      currentRole: currentRoleAccess
+        ? {
+            id: currentRoleAccess.id,
+            type: UserRoleType.ACCOUNTANT,
+            accessLevel: currentRoleAccess.accessLevel,
+            businessOwnerId: userIdFromHeader,
+            permissions: permissions.map((p) => p.toString()),
+          }
+        : undefined,
+      availableRoles,
+    };
+
+    console.log(
+      '🔍 [RBAC] Accountant auth - Final auth data:',
+      JSON.stringify(authData, null, 2),
+    );
+    req.auth = authData;
+
+    req.user = {
+      userId: userIdFromHeader,
+      id: userIdFromHeader,
+      createdBy: userIdFromHeader,
+    };
+  } catch (error) {
+    console.error('Legacy accountant auth error:', error);
+    res.status(500).json({
+      message: 'Authentication error',
+      code: 'AUTH_ERROR',
+    });
   }
-
-  // Set permissions based on access level
-  const permissions =
-    userAccess.accessLevel === 'read'
-      ? [Permission.READ_CLIENT_DATA]
-      : [Permission.READ_CLIENT_DATA, Permission.WRITE_CLIENT_DATA];
-
-  req.auth = {
-    userId: userIdFromHeader,
-    role: UserRole.ACCOUNTANT,
-    permissions,
-    accessLevel: userAccess.accessLevel,
-    targetUserId: userIdFromHeader,
-    accountantId,
-  };
-
-  req.user = {
-    userId: userIdFromHeader,
-    id: userIdFromHeader,
-    createdBy: userIdFromHeader,
-  };
 }
 
 /**
- * Handle subcontractor authentication with multi-project support
+ * Handle subcontractor authentication with multi-project support (legacy)
  */
 async function handleSubcontractorAuth(
   subcontractorId: string,
@@ -286,11 +564,34 @@ async function handleSubcontractorAuth(
     targetProjectId = projectIdFromHeader;
   } else {
     // If no specific project requested, use the first active project
-    // (This is for backward compatibility and general access)
     const firstAccess = projectAccesses[0];
     targetUserId = firstAccess.user._id.toString();
     targetProjectId = firstAccess.project._id.toString();
   }
+
+  // Build unified auth fields for compatibility with new system
+  const availableRoles = projectAccesses.map((access) => {
+    const businessOwner = access.user as any;
+    return {
+      id: access._id.toString(), // Use the access ID as role ID for legacy compatibility
+      type: UserRoleType.SUBCONTRACTOR,
+      businessOwnerName:
+        businessOwner.businessName ||
+        `${businessOwner.firstName} ${businessOwner.lastName}`.trim(),
+      accessLevel:
+        access.accessLevel === 'viewer'
+          ? AccessLevel.VIEWER
+          : AccessLevel.CONTRIBUTOR,
+    };
+  });
+
+  const currentRoleAccess = availableRoles.find((role) =>
+    projectAccesses.find(
+      (access) =>
+        access._id.toString() === role.id &&
+        access.user._id.toString() === targetUserId,
+    ),
+  );
 
   req.auth = {
     userId: targetUserId,
@@ -302,6 +603,21 @@ async function handleSubcontractorAuth(
       userId: access.user._id.toString(),
       accessLevel: access.accessLevel,
     })),
+
+    // New unified system fields for compatibility
+    email: subcontractor.email,
+    currentRole: currentRoleAccess
+      ? {
+          id: currentRoleAccess.id,
+          type: UserRoleType.SUBCONTRACTOR,
+          accessLevel: currentRoleAccess.accessLevel,
+          businessOwnerId: targetUserId,
+          permissions: ROLE_PERMISSIONS[UserRole.SUBCONTRACTOR].map((p) =>
+            p.toString(),
+          ),
+        }
+      : undefined,
+    availableRoles,
   };
 
   // Set user context to the project owner for data filtering
@@ -313,7 +629,7 @@ async function handleSubcontractorAuth(
 }
 
 /**
- * Handle admin authentication
+ * Handle admin authentication (legacy)
  */
 async function handleAdminAuth(
   adminId: string,
@@ -363,6 +679,7 @@ export const requireRole = (...roles: UserRole[]) => {
       });
       return;
     }
+
     next();
   };
 };
@@ -410,6 +727,19 @@ export const checkWritePermission = (
         }
       }
     }
+
+    // Check new unified system write permissions
+    if (
+      req.auth?.currentRole &&
+      !req.auth.currentRole.permissions.includes('write')
+    ) {
+      res.status(403).json({
+        message: 'Access denied: Write permission required',
+        code: 'WRITE_PERMISSION_DENIED',
+        accessLevel: req.auth.currentRole.accessLevel,
+      });
+      return;
+    }
   }
 
   next();
@@ -455,5 +785,33 @@ export const getCurrentUser = (req: Request) => {
     permissions: req.auth?.permissions,
     accessLevel: req.auth?.accessLevel,
     projectAccesses: req.auth?.projectAccesses,
+
+    // New unified system fields
+    email: req.auth?.email,
+    currentRole: req.auth?.currentRole,
+    availableRoles: req.auth?.availableRoles,
   };
+};
+
+/**
+ * Middleware to ensure only business owners can access certain endpoints (unified system)
+ */
+export const businessOwnerOnly = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  // Check both old and new systems
+  const isLegacyBusinessOwner = req.auth?.role === UserRole.USER;
+  const isUnifiedBusinessOwner =
+    req.auth?.currentRole?.type === UserRoleType.BUSINESS_OWNER;
+
+  if (!isLegacyBusinessOwner && !isUnifiedBusinessOwner) {
+    res.status(403).json({
+      message: 'Access denied: Business owner access required',
+      code: 'BUSINESS_OWNER_ONLY',
+    });
+    return;
+  }
+  next();
 };

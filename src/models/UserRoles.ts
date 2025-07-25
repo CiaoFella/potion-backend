@@ -1,0 +1,304 @@
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { myEmitter } from '../services/eventEmitter';
+
+// Enum for all possible roles in the system
+export enum UserRoleType {
+  BUSINESS_OWNER = 'business_owner', // Previously 'user'
+  ACCOUNTANT = 'accountant',
+  SUBCONTRACTOR = 'subcontractor',
+  ADMIN = 'admin',
+}
+
+// Enum for access levels
+export enum AccessLevel {
+  VIEWER = 'viewer',
+  CONTRIBUTOR = 'contributor',
+  EDITOR = 'editor',
+  ADMIN = 'admin',
+}
+
+// Schema for role-specific context (projects for subcontractors, etc.)
+const roleContextSchema = new mongoose.Schema(
+  {
+    // For subcontractors - specific projects they have access to
+    projectIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Project',
+      },
+    ],
+
+    // For accountants - clients they manage
+    clientIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+
+    // Role-specific metadata
+    metadata: {
+      type: Object,
+      default: {},
+    },
+  },
+  { _id: false },
+);
+
+// Main UserRoles schema - represents a user's role with a specific business owner
+const userRolesSchema = new mongoose.Schema(
+  {
+    // Core identity
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+    },
+
+    // Role information
+    roleType: {
+      type: String,
+      enum: Object.values(UserRoleType),
+      required: true,
+    },
+
+    // Business owner who invited this role (null for business owners themselves)
+    businessOwner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: function () {
+        return (
+          this.roleType !== UserRoleType.BUSINESS_OWNER &&
+          this.roleType !== UserRoleType.ADMIN
+        );
+      },
+    },
+
+    // Access control
+    accessLevel: {
+      type: String,
+      enum: Object.values(AccessLevel),
+      default: AccessLevel.CONTRIBUTOR,
+    },
+
+    status: {
+      type: String,
+      enum: ['invited', 'active', 'suspended', 'deactivated'],
+      default: 'invited',
+    },
+
+    // Role-specific password (each role has its own password)
+    password: {
+      type: String,
+      select: false, // Don't include by default for security
+    },
+
+    isPasswordSet: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Password management tokens
+    passwordSetupToken: String,
+    passwordSetupTokenExpiry: Date,
+    passwordResetToken: String,
+    passwordResetTokenExpiry: Date,
+
+    // Invitation management
+    inviteToken: String,
+    inviteTokenExpiry: Date,
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    invitedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // Role-specific context and permissions
+    roleContext: roleContextSchema,
+
+    // Last activity tracking
+    lastLogin: Date,
+    lastAccessed: Date,
+
+    // Soft delete
+    deleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedAt: Date,
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
+);
+
+// Indexes for performance
+userRolesSchema.index(
+  { user: 1, roleType: 1, businessOwner: 1 },
+  { unique: true },
+);
+userRolesSchema.index({ email: 1, roleType: 1, businessOwner: 1 });
+userRolesSchema.index({ businessOwner: 1, roleType: 1, status: 1 });
+userRolesSchema.index({ inviteToken: 1 });
+userRolesSchema.index({ passwordSetupToken: 1 });
+userRolesSchema.index({ passwordResetToken: 1 });
+
+// Virtual for getting role display name
+userRolesSchema.virtual('roleDisplayName').get(function () {
+  const roleNames = {
+    [UserRoleType.BUSINESS_OWNER]: 'Business Owner',
+    [UserRoleType.ACCOUNTANT]: 'Accountant',
+    [UserRoleType.SUBCONTRACTOR]: 'Subcontractor',
+    [UserRoleType.ADMIN]: 'Admin',
+  };
+  return roleNames[this.roleType] || this.roleType;
+});
+
+// Pre-save middleware to hash password
+userRolesSchema.pre('save', async function (next) {
+  // Only hash password if it's been modified and is not already hashed
+  if (this.isModified('password') && this.password) {
+    // Check if password is already hashed (bcrypt hashes start with $2)
+    if (!this.password.startsWith('$2')) {
+      this.password = await bcrypt.hash(this.password, 12);
+    }
+    this.isPasswordSet = true;
+  }
+
+  // Update lastAccessed when status changes to active
+  if (this.isModified('status') && this.status === 'active') {
+    this.lastAccessed = new Date();
+  }
+
+  next();
+});
+
+// Method to compare passwords
+userRolesSchema.methods.comparePassword = async function (
+  candidatePassword: string,
+): Promise<boolean> {
+  if (!this.password) return false;
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Method to check if user has specific permission in this role
+userRolesSchema.methods.hasPermission = function (permission: string): boolean {
+  // Define permissions based on role type and access level
+  const permissions = {
+    [UserRoleType.BUSINESS_OWNER]: [
+      'read',
+      'write',
+      'delete',
+      'manage_team',
+      'billing',
+    ],
+    [UserRoleType.ACCOUNTANT]: {
+      [AccessLevel.VIEWER]: ['read'],
+      [AccessLevel.EDITOR]: ['read', 'write'],
+      [AccessLevel.ADMIN]: ['read', 'write', 'manage_team'],
+    },
+    [UserRoleType.SUBCONTRACTOR]: {
+      [AccessLevel.VIEWER]: ['read'],
+      [AccessLevel.CONTRIBUTOR]: ['read', 'write'],
+      [AccessLevel.EDITOR]: ['read', 'write', 'manage_tasks'],
+    },
+    [UserRoleType.ADMIN]: [
+      'read',
+      'write',
+      'delete',
+      'manage_team',
+      'billing',
+      'system_admin',
+    ],
+  };
+
+  let rolePermissions = permissions[this.roleType];
+
+  // For non-business-owner roles, get permissions based on access level
+  if (typeof rolePermissions === 'object' && !Array.isArray(rolePermissions)) {
+    rolePermissions = rolePermissions[this.accessLevel] || [];
+  }
+
+  return Array.isArray(rolePermissions) && rolePermissions.includes(permission);
+};
+
+// Static method to find all roles for a user
+userRolesSchema.statics.findUserRoles = function (userId: string) {
+  return this.find({
+    user: userId,
+    deleted: false,
+    status: { $in: ['invited', 'active'] },
+  }).populate('businessOwner', 'firstName lastName businessName email');
+};
+
+// Static method to find all team members for a business owner
+userRolesSchema.statics.findTeamMembers = function (
+  businessOwnerId: string,
+  roleType?: UserRoleType,
+) {
+  const query: any = {
+    businessOwner: businessOwnerId,
+    deleted: false,
+    status: { $in: ['invited', 'active'] },
+  };
+
+  if (roleType) {
+    query.roleType = roleType;
+  }
+
+  return this.find(query).populate(
+    'user',
+    'firstName lastName email profilePicture',
+  );
+};
+
+// Static method to check if user has role with business owner
+userRolesSchema.statics.hasRoleWithBusinessOwner = function (
+  userId: string,
+  businessOwnerId: string,
+  roleType: UserRoleType,
+) {
+  return this.findOne({
+    user: userId,
+    businessOwner: businessOwnerId,
+    roleType,
+    deleted: false,
+    status: { $in: ['invited', 'active'] },
+  });
+};
+
+// Emit events for role changes
+userRolesSchema.post('save', function (doc) {
+  if (this.isNew) {
+    myEmitter.emit('userRole:created', {
+      userRole: doc,
+      roleType: doc.roleType,
+      businessOwner: doc.businessOwner,
+    });
+  } else if (this.isModified('status')) {
+    myEmitter.emit('userRole:statusChanged', {
+      userRole: doc,
+      previousStatus: this.getChanges().$set?.status,
+      newStatus: doc.status,
+    });
+  }
+});
+
+export const UserRoles = mongoose.model('UserRoles', userRolesSchema);

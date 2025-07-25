@@ -1,69 +1,53 @@
 import { Request, Response } from 'express';
-import { Project } from '../models/Project';
-import { v4 as uuidv4 } from 'uuid';
 import { Subcontractor } from '../models/Subcontractor';
+import { SubcontractorProjectAccess } from '../models/SubcontractorProjectAccess';
+import { Project } from '../models/Project';
 import { sendEmail } from '../services/emailService';
-import { config } from '../config/config';
+import { reactEmailService } from '../services/reactEmailService';
+import type { SubcontractorInvitationProps } from '../templates/react-email/subcontractor-invitation';
+import type { SubcontractorLoginReadyProps } from '../templates/react-email/subcontractor-login-ready';
+import type { SubcontractorRemovedProps } from '../templates/react-email/subcontractor-removed';
+import type { SubcontractorSetupProps } from '../templates/react-email/subcontractor-setup';
+import type { SubcontractorProjectAssignedProps } from '../templates/react-email/subcontractor-project-assigned';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { reactEmailService } from '../services/reactEmailService';
-import type { SubcontractorLoginReadyProps } from '../templates/react-email/subcontractor-login-ready';
-import { SubcontractorProjectAccess } from '../models/SubcontractorProjectAccess';
+import { config } from '../config/config';
+import { v4 as uuidv4 } from 'uuid';
+import { User } from '../models/User'; // Added import for User
+import crypto from 'crypto'; // Added import for crypto
 
-// Send email to existing subcontractor when added to new project
-const sendSubcontractorAddedToProjectEmail = async (
+// Send email to subcontractor when they are added to a new business owner (existing subcontractor)
+const sendSubcontractorBusinessOwnerAddedEmail = async (
   email: string,
-  projectName: string,
-  subcontractorName?: string,
-  clientName?: string,
-  senderName?: string,
-) => {
+  subcontractorName: string,
+  businessOwnerName: string,
+  businessOwnerBusinessName?: string,
+  projectsCount?: number,
+  projectNames?: string[],
+): Promise<void> => {
   try {
-    const loginUrl = `${config.frontURL}/login`;
-
-    const props = {
-      projectName,
-      loginUrl,
-      subcontractorName: subcontractorName || 'there',
-      clientName,
-      senderName: senderName || 'Project Manager',
-    };
-
-    // Use similar approach as accountant - modify existing template
-    const { subject, html } = await reactEmailService.renderTemplate(
-      'subcontractor-invitation',
-      {
-        ...props,
-        inviteUrl: loginUrl, // Use login URL instead of invite URL
-      },
-    );
-
-    return sendEmail({
+    // For now, use a simple template until the proper one is created
+    await sendEmail({
       to: email,
-      subject: `Added to New Project - ${projectName}`,
-      html: html
-        .replace('has invited you to join', 'has added you to')
-        .replace('Accept Invitation', 'Login to Access'),
-    });
-  } catch (error) {
-    console.error('Error sending subcontractor added to project email:', error);
-
-    // Fallback email
-    return sendEmail({
-      to: email,
-      subject: `Added to New Project - ${projectName}`,
+      subject: `New Project Access - ${businessOwnerName}`,
       html: `
         <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1>Hello ${subcontractorName || 'there'},</h1>
-          <p><strong>${senderName || 'Project Manager'}</strong> has added you to the <strong>"${projectName}"</strong> project${clientName ? ` for ${clientName}` : ''}.</p>
-          <p>You can access this project using your existing Potion login.</p>
+          <h1>Hello ${subcontractorName},</h1>
+          <p><strong>${businessOwnerName}</strong> has given you access to ${projectsCount || 1} project(s)${businessOwnerBusinessName ? ` at ${businessOwnerBusinessName}` : ''}.</p>
+          ${projectNames && projectNames.length > 0 ? `<p><strong>Projects:</strong> ${projectNames.join(', ')}</p>` : ''}
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Login to Access</a>
+            <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Login to View Projects</a>
           </div>
-          <p style="color: #666; font-size: 14px;">You can now manage multiple projects from your Potion dashboard.</p>
+          <p style="color: #666; font-size: 14px;">You can now access your projects using your existing Potion account.</p>
         </div>
       `,
     });
+  } catch (error) {
+    console.error(
+      '❌ Error in sendSubcontractorBusinessOwnerAddedEmail:',
+      error,
+    );
+    throw error;
   }
 };
 
@@ -96,7 +80,7 @@ const sendSubcontractorInvitationEmail = async (
       html,
     });
   } catch (error) {
-    console.error('Error sending subcontractor invitation email:', error);
+    console.error('❌ Error sending subcontractor invitation email:', error);
 
     // Fallback to basic email
     return sendEmail({
@@ -162,6 +146,75 @@ const sendSubcontractorLoginReadyEmail = async (
         </div>
       `,
     });
+  }
+};
+
+// Send generic setup email to new subcontractor (no project mentioned)
+const sendSubcontractorSetupEmail = async (
+  email: string,
+  subcontractorName: string,
+  setupUrl: string,
+  clientName?: string,
+  senderName?: string,
+): Promise<void> => {
+  try {
+    const emailData =
+      await reactEmailService.renderTemplateWithValidation<SubcontractorSetupProps>(
+        'subcontractor-setup',
+        {
+          ...reactEmailService.getDefaultProps(),
+          subcontractorName,
+          setupUrl,
+          clientName,
+          senderName,
+        },
+        ['subcontractorName', 'setupUrl'],
+      );
+
+    await sendEmail({
+      to: email,
+      subject: emailData.subject,
+      html: emailData.html,
+    });
+  } catch (error) {
+    console.error('❌ Error in sendSubcontractorSetupEmail:', error);
+    throw error;
+  }
+};
+
+// Send project assignment notification to existing subcontractor
+const sendSubcontractorProjectAssignedEmail = async (
+  email: string,
+  subcontractorName: string,
+  projectName: string,
+  clientName?: string,
+  senderName?: string,
+  projectDescription?: string,
+): Promise<void> => {
+  try {
+    const emailData =
+      await reactEmailService.renderTemplateWithValidation<SubcontractorProjectAssignedProps>(
+        'subcontractor-project-assigned',
+        {
+          ...reactEmailService.getDefaultProps(),
+          subcontractorName,
+          projectName,
+          clientName,
+          senderName,
+          projectDescription,
+          loginUrl: config.frontURL + '/login',
+        },
+        ['subcontractorName', 'projectName'],
+      );
+
+    await sendEmail({
+      to: email,
+      subject: emailData.subject,
+      html: emailData.html,
+    });
+  } catch (error) {
+    console.error('❌ Error in sendSubcontractorProjectAssignedEmail:', error);
+    throw error;
   }
 };
 
@@ -314,6 +367,32 @@ export const assignSubcontractorToProject = async (
       { path: 'project', select: 'name description' },
       { path: 'user', select: 'firstName lastName businessName' },
     ]);
+
+    // Send project assignment email to subcontractor
+    try {
+      const populatedAccess = projectAccess as any;
+      const subcontractorEmail = populatedAccess.subcontractor.email;
+      const subcontractorName =
+        populatedAccess.subcontractor.fullName ||
+        subcontractorEmail.split('@')[0];
+      const projectName = populatedAccess.project.name;
+      const projectDescription = populatedAccess.project.description;
+      const clientName =
+        `${populatedAccess.user.firstName} ${populatedAccess.user.lastName}`.trim();
+      const senderName = clientName || 'Project Manager';
+
+      await sendSubcontractorProjectAssignedEmail(
+        subcontractorEmail,
+        subcontractorName,
+        projectName,
+        clientName,
+        senderName,
+        projectDescription,
+      );
+    } catch (emailError) {
+      console.error('Error sending project assignment email:', emailError);
+      // Don't fail the assignment if email fails - just log the error
+    }
 
     res.status(201).json({
       success: true,
@@ -516,6 +595,39 @@ export const bulkAssignSubcontractors = async (req: Request, res: Response) => {
             accessLevel,
             role,
           });
+
+          // Send project assignment email for updated assignments too
+          try {
+            const user = await User.findById(userId);
+            const clientName = user
+              ? `${user.firstName} ${user.lastName}`.trim()
+              : undefined;
+            const senderName = clientName || 'Project Manager';
+            const subcontractorName =
+              subcontractor.fullName || subcontractor.email.split('@')[0];
+
+            await sendSubcontractorProjectAssignedEmail(
+              subcontractor.email,
+              subcontractorName,
+              project.name,
+              clientName,
+              senderName,
+              project.description,
+            );
+
+            console.log(
+              '✅ Project assignment update email sent to:',
+              subcontractor.email,
+            );
+          } catch (emailError) {
+            console.error(
+              '❌ Error sending project assignment update email to',
+              subcontractor.email,
+              ':',
+              emailError,
+            );
+            // Don't fail the assignment if email fails
+          }
         } else {
           // Create new
           const projectAccess = new SubcontractorProjectAccess({
@@ -536,6 +648,39 @@ export const bulkAssignSubcontractors = async (req: Request, res: Response) => {
             accessLevel,
             role,
           });
+
+          // Send project assignment email
+          try {
+            const user = await User.findById(userId);
+            const clientName = user
+              ? `${user.firstName} ${user.lastName}`.trim()
+              : undefined;
+            const senderName = clientName || 'Project Manager';
+            const subcontractorName =
+              subcontractor.fullName || subcontractor.email.split('@')[0];
+
+            await sendSubcontractorProjectAssignedEmail(
+              subcontractor.email,
+              subcontractorName,
+              project.name,
+              clientName,
+              senderName,
+              project.description,
+            );
+
+            console.log(
+              '✅ Project assignment email sent to:',
+              subcontractor.email,
+            );
+          } catch (emailError) {
+            console.error(
+              '❌ Error sending project assignment email to',
+              subcontractor.email,
+              ':',
+              emailError,
+            );
+            // Don't fail the assignment if email fails
+          }
         }
       } catch (error) {
         results.failed.push({
@@ -568,11 +713,47 @@ export const bulkAssignSubcontractors = async (req: Request, res: Response) => {
 export const subcontractorController = {
   async createSubcontractor(req: Request, res: Response): Promise<any> {
     try {
-      const { project, ...subcontractorData } = req.body;
+      console.log(
+        '\n📝 [DEBUG] createSubcontractor controller function called',
+      );
+      console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+      console.log('[DEBUG] User auth data:', JSON.stringify(req.auth, null, 2));
+      console.log('[DEBUG] User object:', JSON.stringify(req.user, null, 2));
+
+      const { email, fullName, isUSCitizen, paymentInformation, projectId } =
+        req.body;
       const userId = req.user?.userId;
 
+      console.log('[DEBUG] Extracted values:', {
+        email,
+        fullName,
+        isUSCitizen,
+        paymentInformation,
+        projectId,
+        userId,
+      });
+
+      // Create subcontractorData object for easier reference
+      const subcontractorData = {
+        email,
+        fullName,
+        isUSCitizen,
+        paymentInformation,
+      };
+
+      if (!email || !fullName) {
+        console.log('[DEBUG] ❌ Missing required fields (email or fullName)');
+        return res.status(400).json({
+          message: 'Email and full name are required',
+        });
+      }
+
+      console.log(
+        '[DEBUG] ✅ All required fields present, proceeding with creation...',
+      );
+
       // Validate payment information
-      const paymentInfo = subcontractorData?.paymentInformation;
+      const paymentInfo = paymentInformation;
       if (
         paymentInfo?.paymentType === 'bank' &&
         (!paymentInfo?.routingNumber || !paymentInfo?.accountNumber)
@@ -592,27 +773,156 @@ export const subcontractorController = {
       }
 
       let projectData;
-      if (!!project) {
-        projectData = await Project.findById(project).lean();
+      if (!!projectId) {
+        projectData = await Project.findById(projectId).lean();
         if (!projectData) {
           return res.status(404).json({ message: 'Project not found' });
         }
       }
 
-      const inviteKey = `project-${uuidv4()}`;
       const hasData = Object.keys(subcontractorData || {}).length > 0;
-      const subcontractor = new Subcontractor({
-        ...subcontractorData,
-        status: hasData ? 'active' : 'inactive',
-        inviteKey,
-        project,
-        createdBy: userId,
-      });
 
-      await subcontractor.save();
+      // Check if subcontractor already exists by email (unified approach like accountants)
+      let subcontractor = null;
+      let isNewSubcontractor = false;
+
+      if (subcontractorData.email) {
+        subcontractor = await Subcontractor.findOne({
+          email: subcontractorData.email.toLowerCase(),
+        });
+      }
+
+      if (!subcontractor) {
+        // Create new subcontractor record (unified approach)
+        const inviteKey = `project-${uuidv4()}`;
+        subcontractor = new Subcontractor({
+          ...subcontractorData,
+          email: subcontractorData.email?.toLowerCase(),
+          inviteKey: inviteKey, // Keep for backward compatibility
+          // Don't set createdBy for unified records - they can work for multiple business owners
+        });
+
+        // Generate password setup token for new subcontractor
+        if (subcontractorData.email) {
+          const passwordSetupToken = crypto.randomBytes(32).toString('hex');
+          const passwordSetupTokenExpiry = new Date(
+            Date.now() + 48 * 60 * 60 * 1000,
+          ); // 48 hours
+
+          subcontractor.passwordSetupToken = passwordSetupToken;
+          subcontractor.passwordSetupTokenExpiry = passwordSetupTokenExpiry;
+        }
+
+        await subcontractor.save();
+        isNewSubcontractor = true;
+      } else {
+        // Update existing subcontractor with any new data (excluding email and password fields)
+        const updateData = { ...subcontractorData };
+        delete updateData.email; // Don't update email
+        // Note: password and isPasswordSet are not in subcontractorData, so no need to delete them
+
+        // Update the existing subcontractor with new information
+        await Subcontractor.findByIdAndUpdate(subcontractor._id, updateData);
+      }
+
+      // Create SubcontractorProjectAccess relationship
+      // If project is specified, use it; otherwise create relationship with first available project
+      let projectToAssign = projectId;
+      if (!projectToAssign) {
+        // Find the business owner's first project to create a general relationship
+        const userProjects = await Project.find({
+          createdBy: userId,
+          deleted: { $ne: true },
+        }).limit(1);
+
+        if (userProjects.length > 0) {
+          projectToAssign = userProjects[0]._id;
+        }
+      }
+
+      // Create the access relationship if we have a project
+      if (projectToAssign) {
+        const existingAccess = await SubcontractorProjectAccess.findOne({
+          subcontractor: subcontractor._id,
+          project: projectToAssign,
+          user: userId,
+        });
+
+        if (!existingAccess) {
+          // Create the project access relationship
+          const projectAccess = new SubcontractorProjectAccess({
+            subcontractor: subcontractor._id,
+            project: projectToAssign,
+            user: userId,
+            accessLevel: 'contributor', // Default access level
+            role: 'Contractor', // Default role
+            status: 'active',
+          });
+
+          await projectAccess.save();
+        }
+      }
+
+      // Send appropriate email based on subcontractor status
+      if (subcontractorData?.email && hasData) {
+        try {
+          // Get user info for email context
+          const user = await User.findById(userId);
+          const clientName = user
+            ? `${user.firstName} ${user.lastName}`.trim()
+            : undefined;
+          const senderName = clientName || 'Project Manager';
+
+          // Check if this is a first-time subcontractor or existing one without password
+          const existingActiveProjects = await SubcontractorProjectAccess.find({
+            subcontractor: subcontractor._id,
+            status: 'active',
+          });
+
+          const shouldSendSetupEmail =
+            isNewSubcontractor ||
+            (!subcontractor.password && existingActiveProjects.length === 0);
+
+          if (shouldSendSetupEmail) {
+            // Send setup invitation email for new subcontractor
+            const setupLink = `${req?.headers?.origin || config.frontURL}/setup-password/${subcontractor.passwordSetupToken}`;
+
+            await sendSubcontractorSetupEmail(
+              subcontractorData.email,
+              subcontractorData.fullName ||
+                subcontractorData.email.split('@')[0],
+              setupLink,
+              clientName,
+              senderName,
+            );
+          } else if (subcontractor.password && !isNewSubcontractor) {
+            // Existing subcontractor with password - send "added to new business owner" email
+            await sendSubcontractorBusinessOwnerAddedEmail(
+              subcontractorData.email,
+              subcontractorData.fullName ||
+                subcontractorData.email.split('@')[0],
+              clientName || senderName || 'Project Manager',
+              user?.businessName,
+              1, // New business owner with 1 project access
+              [projectData?.name].filter(Boolean),
+            );
+          }
+        } catch (emailError) {
+          console.error(
+            'Error sending email during subcontractor creation:',
+            emailError,
+          );
+          return res.status(201).json({
+            ...subcontractor.toObject(),
+            emailWarning:
+              'Subcontractor created successfully, but invitation email could not be sent.',
+          });
+        }
+      }
+
       res.status(201).json(subcontractor);
     } catch (error) {
-      console.log(error);
+      console.error('Error creating subcontractor:', error);
       res.status(500).json({ message: 'Server error', error });
     }
   },
@@ -620,12 +930,11 @@ export const subcontractorController = {
   async generateInviteLink(req: Request, res: Response): Promise<any> {
     try {
       const { id } = req.params;
-      const subcontractor =
-        await Subcontractor.findById(id).populate('project');
+      const subcontractor = await Subcontractor.findById(id); // Remove invalid populate
       if (!subcontractor) {
         return res.status(404).json({ message: 'Subcontractor not found' });
       }
-      const inviteKey = `${(subcontractor as any)?.project?.name?.toLowerCase()?.replace(/ /g, '-')}-${uuidv4()}`;
+      const inviteKey = `subcontractor-${uuidv4()}`; // Use generic name since no project field
       await Subcontractor.findByIdAndUpdate(id, { inviteKey }, { new: true });
 
       res.json({ inviteKey });
@@ -636,75 +945,267 @@ export const subcontractorController = {
 
   async inviteSubcontractor(req: Request, res: Response): Promise<any> {
     try {
+      console.log(
+        '\n🎯 [DEBUG] inviteSubcontractor controller function called',
+      );
+      console.log(
+        '[DEBUG] Request params:',
+        JSON.stringify(req.params, null, 2),
+      );
+      console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+      console.log('[DEBUG] User auth data:', JSON.stringify(req.auth, null, 2));
+      console.log('[DEBUG] User object:', JSON.stringify(req.user, null, 2));
+
       const { id } = req.params;
       const { email, projectId, note, passkey } = req.body;
+      const userId = req.user?.userId;
+
+      console.log('[DEBUG] Extracted values:', {
+        id,
+        email,
+        projectId,
+        note,
+        passkey: passkey ? '[SET]' : '[NOT SET]',
+        userId,
+      });
 
       if (!email) {
+        console.log('[DEBUG] ❌ Missing email field');
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
-      // Check if a subcontractor with this email already exists and has a password
-      const existingSubcontractor = await Subcontractor.findOne({
+      console.log(
+        '[DEBUG] ✅ All required fields present, proceeding with invitation...',
+      );
+
+      // Use unified approach - find existing subcontractor by email
+      let subcontractor = await Subcontractor.findOne({
         email: email.toLowerCase(),
-        isPasswordSet: true,
       });
 
-      const subcontractor = await Subcontractor.findByIdAndUpdate(
-        id,
-        {
-          email,
-          project: projectId,
+      let isNewSubcontractor = false;
+
+      if (!subcontractor) {
+        console.log('[DEBUG] ✨ Creating new subcontractor');
+        // Create new unified subcontractor record
+        subcontractor = new Subcontractor({
+          email: email.toLowerCase(),
           passkey,
           note,
           status: 'invited',
-        },
-        { new: true },
-      )
-        .populate('project')
-        .populate('createdBy');
+          inviteKey: uuidv4(),
+        });
 
-      if (!subcontractor.inviteKey) {
-        subcontractor.inviteKey = uuidv4();
+        // Generate password setup token for new subcontractor
+        const passwordSetupToken = crypto.randomBytes(32).toString('hex');
+        const passwordSetupTokenExpiry = new Date(
+          Date.now() + 48 * 60 * 60 * 1000,
+        ); // 48 hours
+
+        subcontractor.passwordSetupToken = passwordSetupToken;
+        subcontractor.passwordSetupTokenExpiry = passwordSetupTokenExpiry;
+
         await subcontractor.save();
+        console.log('[DEBUG] ✅ New subcontractor created:', subcontractor._id);
+        isNewSubcontractor = true;
+      } else {
+        console.log(
+          '[DEBUG] 📝 Updating existing subcontractor:',
+          subcontractor._id,
+        );
+        // Update existing subcontractor
+        await Subcontractor.findByIdAndUpdate(subcontractor._id, {
+          passkey,
+          note,
+          status: 'invited',
+        });
+
+        // Generate new password setup token if they don't have password
+        if (!subcontractor.password) {
+          const passwordSetupToken = crypto.randomBytes(32).toString('hex');
+          const passwordSetupTokenExpiry = new Date(
+            Date.now() + 48 * 60 * 60 * 1000,
+          ); // 48 hours
+
+          subcontractor.passwordSetupToken = passwordSetupToken;
+          subcontractor.passwordSetupTokenExpiry = passwordSetupTokenExpiry;
+          await subcontractor.save();
+          console.log(
+            '[DEBUG] 🔑 Updated password setup token for existing subcontractor',
+          );
+        }
       }
 
-      // Get project and client info for the email
-      // Cast to any to access legacy project field for backward compatibility
-      const legacySubcontractor = subcontractor as any;
-      const project = legacySubcontractor.project;
-      const createdBy = subcontractor.createdBy as any;
-      const projectName = project?.name || 'Unknown Project';
-      const clientName = createdBy
-        ? `${createdBy.firstName} ${createdBy.lastName}`.trim()
+      // Create SubcontractorProjectAccess relationship
+      // If projectId is provided, use it; otherwise create a general relationship with first available project
+      let projectToAssign = projectId;
+      if (!projectToAssign) {
+        console.log(
+          '[DEBUG] 🔍 Looking for user projects to assign general relationship',
+        );
+        // Find the business owner's first project to create a general relationship
+        const userProjects = await Project.find({
+          createdBy: userId,
+          deleted: { $ne: true },
+        }).limit(1);
+
+        if (userProjects.length > 0) {
+          projectToAssign = userProjects[0]._id;
+          console.log('[DEBUG] 📂 Found project to assign:', projectToAssign);
+        } else {
+          console.log('[DEBUG] ⚠️ No projects found for user:', userId);
+        }
+      }
+
+      // Create the access relationship if we have a project
+      if (projectToAssign) {
+        console.log(
+          '[DEBUG] 🔗 Creating SubcontractorProjectAccess relationship',
+        );
+        const existingAccess = await SubcontractorProjectAccess.findOne({
+          subcontractor: subcontractor._id,
+          project: projectToAssign,
+          user: userId,
+        });
+
+        if (!existingAccess) {
+          const projectAccess = new SubcontractorProjectAccess({
+            subcontractor: subcontractor._id,
+            project: projectToAssign,
+            user: userId,
+            accessLevel: 'contributor', // Default access level
+            role: 'Contractor', // Default role
+            status: 'active',
+          });
+
+          await projectAccess.save();
+          console.log(
+            '[DEBUG] ✅ SubcontractorProjectAccess created:',
+            projectAccess._id,
+          );
+        } else {
+          console.log(
+            '[DEBUG] 📋 SubcontractorProjectAccess already exists:',
+            existingAccess._id,
+          );
+        }
+      } else {
+        console.log(
+          '[DEBUG] ⚠️ No project to assign - skipping access creation',
+        );
+      }
+
+      // Get user info for email context
+      const user = await User.findById(userId);
+      const clientName = user
+        ? `${user.firstName} ${user.lastName}`.trim()
         : undefined;
       const senderName = clientName || 'Project Manager';
 
-      // Send appropriate email based on whether subcontractor already has password
-      if (existingSubcontractor) {
-        // Existing subcontractor with password - just notify them they've been added
-        await sendSubcontractorAddedToProjectEmail(
-          email,
-          projectName,
-          existingSubcontractor.fullName || email.split('@')[0],
-          clientName,
-          senderName,
-        );
-      } else {
-        // New subcontractor or existing without password - send setup email
-        const inviteLink = `${req?.headers?.origin}/p/subcontractor/${subcontractor?.inviteKey}/edit`;
-        await sendSubcontractorInvitationEmail(
-          email,
-          projectName,
-          inviteLink,
-          subcontractor.fullName || email.split('@')[0],
-          clientName,
-          senderName,
-        );
+      console.log('[DEBUG] 👤 User info for email:', {
+        clientName,
+        senderName,
+        businessName: user?.businessName,
+      });
+
+      // Check if subcontractor has any existing active project relationships
+      const existingActiveProjects = await SubcontractorProjectAccess.find({
+        subcontractor: subcontractor._id,
+        status: 'active',
+      });
+
+      // Check if this subcontractor already has projects with THIS business owner
+      const existingProjectsWithThisUser =
+        await SubcontractorProjectAccess.find({
+          subcontractor: subcontractor._id,
+          user: userId,
+          status: 'active',
+        });
+
+      // CORRECTED EMAIL LOGIC:
+      // - New subcontractor (never existed) → Setup email
+      // - Existing subcontractor without password → Setup email
+      // - Existing subcontractor with password + first time with this business owner → Business owner added email
+      // - Existing subcontractor with password + already working with this business owner → Business owner added email
+      const shouldSendSetupEmail =
+        isNewSubcontractor || !subcontractor.password;
+
+      console.log('[DEBUG] 📧 Email decision:', {
+        isNewSubcontractor,
+        hasPassword: !!subcontractor.password,
+        totalActiveProjects: existingActiveProjects.length,
+        activeProjectsWithThisUser: existingProjectsWithThisUser.length,
+        shouldSendSetupEmail,
+        logic: isNewSubcontractor
+          ? 'New subcontractor → Setup email'
+          : !subcontractor.password
+            ? 'Existing subcontractor, no password → Setup email'
+            : existingProjectsWithThisUser.length <= 1
+              ? 'Existing subcontractor with password, first time with this business owner → Business owner added email'
+              : 'Existing subcontractor with password, additional project with same business owner → Business owner added email',
+      });
+
+      // Send appropriate email based on subcontractor status
+      if (shouldSendSetupEmail) {
+        console.log('[DEBUG] 📨 Sending setup email...');
+        // First time invitation - send setup email
+        const setupLink = `${req?.headers?.origin || config.frontURL}/setup-password/${subcontractor.passwordSetupToken}`;
+
+        try {
+          await sendSubcontractorSetupEmail(
+            email,
+            subcontractor.fullName || email.split('@')[0],
+            setupLink,
+            clientName,
+            senderName,
+          );
+          console.log('[DEBUG] ✅ Setup email sent successfully');
+        } catch (emailError) {
+          console.error(
+            '[DEBUG] ❌ Error sending setup invitation email:',
+            emailError,
+          );
+          throw emailError;
+        }
+      } else if (subcontractor.password && !isNewSubcontractor) {
+        console.log('[DEBUG] 📨 Sending business owner added email...');
+        // Existing subcontractor with password - send "added to new business owner" email
+        try {
+          // Get current business owner's projects for this subcontractor to show count
+          const existingProjects = await SubcontractorProjectAccess.find({
+            subcontractor: subcontractor._id,
+            user: userId,
+            status: 'active',
+          }).populate('project');
+
+          const projectNames = existingProjects
+            .map((access: any) => access.project?.name)
+            .filter(Boolean);
+
+          await sendSubcontractorBusinessOwnerAddedEmail(
+            email,
+            subcontractor.fullName || email.split('@')[0],
+            clientName || senderName || 'Project Manager',
+            user?.businessName,
+            existingProjects.length,
+            projectNames,
+          );
+          console.log(
+            '[DEBUG] ✅ Business owner added email sent successfully',
+          );
+        } catch (emailError) {
+          console.error(
+            '[DEBUG] ❌ Error sending new business owner notification email:',
+            emailError,
+          );
+          throw emailError;
+        }
       }
 
+      console.log('[DEBUG] 🎉 inviteSubcontractor completed successfully');
       res.status(201).json(subcontractor);
     } catch (error) {
-      console.error('Error inviting subcontractor:', error);
+      console.error('[DEBUG] ❌ Error in inviteSubcontractor:', error);
       res.status(500).json({ message: 'Server error', error });
     }
   },
@@ -712,9 +1213,9 @@ export const subcontractorController = {
   async getByInviteKey(req: Request, res: Response): Promise<any> {
     try {
       const { inviteKey } = req.params;
-      const subcontractor = await Subcontractor.findOne({ inviteKey })
-        .populate('project')
-        .populate('createdBy');
+      const subcontractor = await Subcontractor.findOne({ inviteKey }).populate(
+        'createdBy',
+      ); // Only populate valid reference fields
 
       if (!subcontractor) {
         return res.status(404).json({ message: 'Invalid invite key' });
@@ -773,9 +1274,7 @@ export const subcontractorController = {
 
       const subcontractor = await Subcontractor.findOne({
         inviteKey: req.params.inviteKey,
-      })
-        .populate('project')
-        .populate('createdBy');
+      }).populate('createdBy'); // Only populate valid reference fields
 
       if (!subcontractor) {
         return res.status(404).json({ message: 'Subcontractor not found' });
@@ -786,15 +1285,19 @@ export const subcontractorController = {
 
       const updatedSubcontractor = await Subcontractor.findOneAndUpdate(
         { inviteKey: req.params.inviteKey },
-        { password: await bcrypt.hash(password, 10), isPasswordSet: true },
+        { password: password, isPasswordSet: true }, // Pre-save hook will hash the password
         { new: true },
-      )
-        .populate('project')
-        .populate('createdBy')
-        .lean();
+      ).populate('createdBy'); // Only populate valid reference fields
 
-      // Send React Email confirmation with project info
-      const projectName = (subcontractor as any).project?.name;
+      // Get project information using the new SubcontractorProjectAccess relationship
+      const projectAccess = await SubcontractorProjectAccess.findOne({
+        subcontractor: subcontractor._id,
+        status: 'active',
+      }).populate('project');
+
+      const projectName = projectAccess?.project
+        ? (projectAccess.project as any).name
+        : 'Your Project';
       const clientName = (subcontractor as any).createdBy
         ? `${(subcontractor as any).createdBy.firstName} ${(subcontractor as any).createdBy.lastName}`.trim()
         : undefined;
@@ -818,9 +1321,9 @@ export const subcontractorController = {
       const { email, password } = req.body;
 
       // Find the subcontractor
-      const subcontractor = await Subcontractor.findOne({ email })
-        .populate('project')
-        .populate('createdBy');
+      const subcontractor = await Subcontractor.findOne({ email }).populate(
+        'createdBy',
+      ); // Only populate valid reference fields
 
       if (!subcontractor) {
         return res.status(400).json({ message: 'Invalid credentials' });
@@ -891,38 +1394,111 @@ export const subcontractorController = {
 
   async getSubcontractors(req: Request, res: Response): Promise<any> {
     try {
-      const subcontractors = await Subcontractor.find({
+      // Use the new SubcontractorProjectAccess model to find subcontractors for a project
+      const projectAccesses = await SubcontractorProjectAccess.find({
         project: req.params.projectId,
         status: 'active',
-        deleted: false,
-      });
+      })
+        .populate({
+          path: 'subcontractor',
+          match: { deleted: { $ne: true } }, // Only include non-deleted subcontractors
+        })
+        .populate('project')
+        .populate('user');
+
+      // Filter out any null subcontractors (in case they were deleted)
+      const validAccesses = projectAccesses.filter(
+        (access) => access.subcontractor,
+      );
+
+      // Transform the data to match the expected format
+      const subcontractors = validAccesses.map((access) => ({
+        ...(access.subcontractor as any).toObject(),
+        projectAccess: {
+          id: access._id,
+          accessLevel: access.accessLevel,
+          role: access.role,
+          paymentTerms: access.paymentTerms,
+          startDate: access.startDate,
+          endDate: access.endDate,
+        },
+      }));
+
       res.json(subcontractors);
     } catch (error) {
+      console.error('Error fetching subcontractors:', error);
       res.status(500).json({ message: 'Server error', error });
     }
   },
 
   async getAllSubcontractors(req: Request, res: Response): Promise<any> {
     try {
-      console.log('[getAllSubcontractors] Method called');
-      console.log('[getAllSubcontractors] req.user:', req.user);
-      console.log('[getAllSubcontractors] Using userId:', req.user?.userId);
+      console.log('[getAllSubcontractors] Starting...');
+      console.log('[getAllSubcontractors] User ID:', req.user?.userId);
 
-      const subcontractors = await Subcontractor.find({
-        createdBy: req.user?.userId,
-        // Remove the status filter temporarily to see all subcontractors
-        // status: "active",
-        deleted: { $ne: true }, // Changed from false to handle undefined values
+      // NEW: Use the unified UserRoles system instead of SubcontractorProjectAccess
+      const { UserRoles, UserRoleType } = await import('../models/UserRoles');
+
+      const subcontractorRoles = await UserRoles.find({
+        businessOwner: req.user?.userId, // Find all subcontractor roles for this business owner
+        roleType: UserRoleType.SUBCONTRACTOR,
+        deleted: false,
+        status: { $in: ['invited', 'active'] },
       })
-        .populate('project')
+        .populate('user', 'firstName lastName email')
+        .populate('businessOwner', 'firstName lastName businessName')
         .lean();
 
       console.log(
         '[getAllSubcontractors] Found',
-        subcontractors.length,
-        'subcontractors',
+        subcontractorRoles.length,
+        'subcontractor roles',
       );
-      console.log('[getAllSubcontractors] Subcontractors:', subcontractors);
+
+      // Transform UserRoles data to match the expected frontend format
+      const subcontractors = subcontractorRoles.map((role) => {
+        const user = role.user as any;
+        const businessOwner = role.businessOwner as any;
+
+        return {
+          _id: role._id,
+          email: role.email || user?.email,
+          fullName:
+            user?.firstName && user?.lastName
+              ? `${user.firstName} ${user.lastName}`.trim()
+              : role.email?.split('@')[0] || 'Unknown',
+          firstName: user?.firstName || '',
+          lastName: user?.lastName || '',
+          status: role.status,
+          roleType: role.roleType,
+          accessLevel: role.accessLevel,
+          invitedAt: role.invitedAt,
+          lastAccessed: role.lastAccessed,
+          businessOwner: {
+            id: businessOwner?._id,
+            name:
+              businessOwner?.firstName && businessOwner?.lastName
+                ? `${businessOwner.firstName} ${businessOwner.lastName}`.trim()
+                : businessOwner?.businessName || 'Business Owner',
+            email: businessOwner?.email,
+          },
+          // For backward compatibility with frontend expectations
+          isPasswordSet: role.status === 'active',
+          deleted: false,
+          createdAt: role.createdAt,
+          updatedAt: role.updatedAt,
+        };
+      });
+
+      console.log(
+        '[getAllSubcontractors] Transformed subcontractors:',
+        subcontractors.map((s) => ({
+          email: s.email,
+          fullName: s.fullName,
+          status: s.status,
+          accessLevel: s.accessLevel,
+        })),
+      );
 
       res.json(subcontractors);
     } catch (error) {
@@ -935,7 +1511,7 @@ export const subcontractorController = {
     try {
       const subcontractor = await Subcontractor.findById(
         req?.params?.id,
-      ).populate('project');
+      ).populate('createdBy'); // Only populate valid reference fields
       if (!subcontractor) {
         return res.status(404).json({ message: 'Subcontractor not found' });
       }
@@ -947,9 +1523,69 @@ export const subcontractorController = {
 
   async deleteSubcontractor(req: Request, res: Response): Promise<any> {
     try {
+      console.log('\n🗑️ [DEBUG] deleteSubcontractor called');
+      console.log('[DEBUG] Subcontractor ID:', req.params.id);
+      console.log('[DEBUG] User ID:', req.user?.userId);
+      console.log(
+        '[DEBUG] Call stack origin:',
+        new Error().stack?.split('\n')[2],
+      );
+
+      const subcontractor = await Subcontractor.findById(
+        req.params.id,
+      ).populate('createdBy'); // Only populate valid reference fields
+
+      if (!subcontractor) {
+        console.log('[DEBUG] ❌ Subcontractor not found');
+        return res.status(404).json({ message: 'Subcontractor not found' });
+      }
+
+      console.log('[DEBUG] 🔍 Subcontractor details:', {
+        id: subcontractor._id,
+        email: subcontractor.email,
+        fullName: subcontractor.fullName,
+        hasPassword: !!subcontractor.password,
+        status: subcontractor.status,
+        deleted: subcontractor.deleted,
+      });
+
+      // Get client info for the removal email
+      const createdBy = subcontractor.createdBy as any;
+      const clientName = createdBy
+        ? `${createdBy.firstName} ${createdBy.lastName}`.trim()
+        : undefined;
+
+      console.log('[DEBUG] 📧 Sending removal email to:', subcontractor.email);
+
+      // Send removal email - note: no project info since this is a general removal
+      const props: SubcontractorRemovedProps = {
+        subcontractorName:
+          subcontractor.fullName || subcontractor.email.split('@')[0],
+        projectName: 'Project', // Generic since subcontractor can be in multiple projects
+        clientName,
+        senderName: clientName || 'Project Manager',
+      };
+
+      const { subject, html } = await reactEmailService.renderTemplate(
+        'subcontractor-removed',
+        props,
+      );
+
+      await sendEmail({
+        to: subcontractor.email,
+        subject,
+        html,
+      });
+
+      console.log('[DEBUG] ✅ Removal email sent successfully');
+
       await Subcontractor.findByIdAndUpdate(req.params.id, { deleted: true });
-      res.json({ message: 'Subcontractor deleted' });
+
+      console.log('[DEBUG] ✅ Subcontractor marked as deleted');
+
+      res.json({ message: 'Subcontractor removed successfully' });
     } catch (error) {
+      console.error('[DEBUG] ❌ Error deleting subcontractor:', error);
       res.status(500).json({ message: 'Server error', error });
     }
   },

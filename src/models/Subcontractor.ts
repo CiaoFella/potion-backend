@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import { myEmitter } from '../services/eventEmitter';
 
 const paymentInformationSchema = new mongoose.Schema(
@@ -59,8 +60,11 @@ const subcontractorSchema = new mongoose.Schema(
       enum: ['individual', 'business'],
     },
     paymentInformation: paymentInformationSchema,
-    inviteKey: String,
+    inviteKey: String, // Keep for backward compatibility but will phase out
     passkey: String,
+    // Password setup fields (unified with User and Accountant models)
+    passwordSetupToken: String,
+    passwordSetupTokenExpiry: Date,
     // Password reset fields
     passwordResetToken: String,
     passwordResetTokenExpiry: Date,
@@ -143,6 +147,14 @@ subcontractorSchema.statics.getActiveProjects = async function (
 subcontractorSchema.methods.getActiveProjects = function () {
   return this.constructor.getActiveProjects(this._id);
 };
+
+// Pre-save hook to hash password if modified (similar to User model)
+subcontractorSchema.pre('save', async function (next) {
+  if (this.isModified('password') && this.password) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
 
 const actionHandler = (doc, type = 'update') => {
   myEmitter.emit('databaseChange', {
