@@ -428,19 +428,9 @@ async function handleAccountantAuth(
       status: 'active',
     }).populate('user', 'firstName lastName businessName email');
 
-    console.log(
-      '🔍 [RBAC] Accountant auth - Found user access records:',
-      allUserAccess.length,
-    );
-    console.log(
-      '🔍 [RBAC] Accountant auth - User ID from header:',
-      userIdFromHeader,
-    );
-    console.log('🔍 [RBAC] Accountant auth - Accountant ID:', accountantId);
-
     const availableRoles = allUserAccess.map((access) => {
       const businessOwner = access.user as any;
-      const role = {
+      return {
         id: access._id.toString(), // Use the access ID as role ID for legacy compatibility
         type: UserRoleType.ACCOUNTANT,
         businessOwnerName:
@@ -451,8 +441,6 @@ async function handleAccountantAuth(
             ? AccessLevel.VIEWER
             : AccessLevel.CONTRIBUTOR,
       };
-      console.log('🔍 [RBAC] Accountant auth - Created role:', role);
-      return role;
     });
 
     const currentRoleAccess = availableRoles.find((role) =>
@@ -461,15 +449,6 @@ async function handleAccountantAuth(
           access._id.toString() === role.id &&
           access.user._id.toString() === userIdFromHeader,
       ),
-    );
-
-    console.log(
-      '🔍 [RBAC] Accountant auth - Current role access:',
-      currentRoleAccess,
-    );
-    console.log(
-      '🔍 [RBAC] Accountant auth - Available roles count:',
-      availableRoles.length,
     );
 
     const authData = {
@@ -494,10 +473,6 @@ async function handleAccountantAuth(
       availableRoles,
     };
 
-    console.log(
-      '🔍 [RBAC] Accountant auth - Final auth data:',
-      JSON.stringify(authData, null, 2),
-    );
     req.auth = authData;
 
     req.user = {

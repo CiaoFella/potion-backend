@@ -423,7 +423,12 @@ export const inviteUserRole = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { email, roleType, accessLevel = AccessLevel.CONTRIBUTOR } = req.body;
+    const {
+      email,
+      roleType,
+      accessLevel = AccessLevel.CONTRIBUTOR,
+      subcontractorData,
+    } = req.body;
     const businessOwnerId = req.auth?.userId;
 
     if (!email || !roleType) {
@@ -449,28 +454,147 @@ export const inviteUserRole = async (
     // Find or create user
     let user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
-      user = new User({
+      // Create new user with subcontractor data if provided
+      const userData: any = {
         email: email.toLowerCase(),
-        firstName: '',
-        lastName: '',
+        firstName: subcontractorData?.fullName?.split(' ')[0] || '',
+        lastName:
+          subcontractorData?.fullName?.split(' ').slice(1).join(' ') || '',
         password: 'temp_password_' + Date.now(), // Temporary password
         authProvider: 'password',
         isPasswordSet: false,
-      });
+      };
+
+      // Add subcontractor-specific data if this is a subcontractor invitation
+      if (roleType === UserRoleType.SUBCONTRACTOR && subcontractorData) {
+        userData.businessName = subcontractorData.businessName;
+        userData.country = subcontractorData.country;
+        userData.businessType = subcontractorData.taxType;
+        userData.taxId = subcontractorData.taxId;
+
+        // Store payment information
+        if (subcontractorData.paymentInformation) {
+          const paymentInfo = subcontractorData.paymentInformation;
+          const paymentMethods = [];
+
+          if (paymentInfo.paymentType === 'bank') {
+            paymentMethods.push({
+              id: Date.now().toString(),
+              type: 'bank',
+              accountName: paymentInfo.accountHolderName,
+              accountNumber: paymentInfo.accountNumber
+                ? `****${paymentInfo.accountNumber.slice(-4)}`
+                : '',
+              routingNumber: paymentInfo.routingNumber || paymentInfo.swiftCode,
+              isDefault: true,
+            });
+          } else if (paymentInfo.paymentType === 'paypal') {
+            // For PayPal, we might store it differently
+            userData.paypalEmail = paymentInfo.paypalEmail;
+          }
+
+          if (paymentMethods.length > 0) {
+            userData.paymentMethods = paymentMethods;
+          }
+        }
+      }
+
+      user = new User(userData);
       await user.save();
+    } else if (roleType === UserRoleType.SUBCONTRACTOR && subcontractorData) {
+      // Update existing user with subcontractor data if not already set
+      let shouldUpdate = false;
+
+      if (!user.firstName && subcontractorData.fullName) {
+        user.firstName = subcontractorData.fullName.split(' ')[0] || '';
+        user.lastName =
+          subcontractorData.fullName.split(' ').slice(1).join(' ') || '';
+        shouldUpdate = true;
+      }
+
+      if (!user.businessName && subcontractorData.businessName) {
+        user.businessName = subcontractorData.businessName;
+        shouldUpdate = true;
+      }
+
+      if (!user.country && subcontractorData.country) {
+        user.country = subcontractorData.country;
+        shouldUpdate = true;
+      }
+
+      if (shouldUpdate) {
+        await user.save();
+      }
     }
 
-    // Check if role already exists
+    // Check if role already exists (including deleted ones)
     const existingRole = await UserRoles.findOne({
       user: user._id,
       roleType,
       businessOwner: businessOwnerId,
-      deleted: false,
     });
 
     if (existingRole) {
-      res.status(400).json({ error: 'User already has this role with you' });
-      return;
+      if (existingRole.deleted) {
+        // Reactivate the deleted role instead of creating a new one
+        existingRole.deleted = false;
+        existingRole.status = 'invited';
+        existingRole.accessLevel = accessLevel;
+        existingRole.invitedAt = new Date();
+        existingRole.invitedBy = businessOwnerId as any;
+
+        // Generate new tokens
+        const inviteToken = jwt.sign(
+          { userId: user._id, businessOwnerId, roleType },
+          config.jwtSecret!,
+          { expiresIn: '7d' },
+        );
+        const passwordSetupToken = jwt.sign(
+          { userId: user._id, roleType, setup: true },
+          config.jwtSecret!,
+          { expiresIn: '7d' },
+        );
+
+        existingRole.inviteToken = inviteToken;
+        existingRole.inviteTokenExpiry = new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        );
+        existingRole.passwordSetupToken = passwordSetupToken;
+        existingRole.passwordSetupTokenExpiry = new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        );
+
+        await existingRole.save();
+
+        // Populate businessOwner for email template
+        await existingRole.populate(
+          'businessOwner',
+          'firstName lastName businessName email',
+        );
+
+        // Send invitation email
+        await sendRoleInvitationEmail(user, existingRole);
+
+        res.json({
+          success: true,
+          message: 'Invitation sent successfully (role reactivated)',
+          role: {
+            id: existingRole._id,
+            email: user.email,
+            roleType,
+            accessLevel,
+            status: 'invited',
+          },
+        });
+        return;
+      } else {
+        // Active role already exists
+        res.status(400).json({
+          error: 'User already has this role with you',
+          details: `${user.email} is already invited/active as ${roleType}`,
+        });
+        return;
+      }
     }
 
     // Generate tokens
@@ -498,7 +622,7 @@ export const inviteUserRole = async (
       inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       passwordSetupToken,
       passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      invitedBy: businessOwnerId,
+      invitedBy: businessOwnerId as any,
       invitedAt: new Date(),
     });
 
@@ -526,7 +650,22 @@ export const inviteUserRole = async (
     });
   } catch (error) {
     console.error('Invite user role error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+
+    // Handle specific MongoDB duplicate key error
+    if (error.code === 11000) {
+      res.status(400).json({
+        error: 'User already has this role',
+        details:
+          'This user already has the specified role with your organization',
+      });
+      return;
+    }
+
+    res.status(500).json({
+      error: 'Internal server error',
+      details:
+        process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
   }
 };
 

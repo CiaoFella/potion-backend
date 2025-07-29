@@ -35,9 +35,6 @@ router.post('/invite', businessOwnerOnly, inviteUserRole);
 
 // Role management endpoints (require specific permissions)
 router.get('/my-roles', (req, res) => {
-  console.log('🔍 [API] /my-roles called');
-  console.log('🔍 [API] req.auth:', JSON.stringify(req.auth, null, 2));
-
   const response = {
     currentRole: req.auth?.currentRole,
     availableRoles: req.auth?.availableRoles,
@@ -47,10 +44,6 @@ router.get('/my-roles', (req, res) => {
     },
   };
 
-  console.log(
-    '🔍 [API] /my-roles response:',
-    JSON.stringify(response, null, 2),
-  );
   res.json(response);
 });
 

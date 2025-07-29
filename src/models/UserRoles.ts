@@ -37,6 +37,25 @@ const roleContextSchema = new mongoose.Schema(
       },
     ],
 
+    // Role-specific profile information (separate from main User document)
+    profile: {
+      firstName: { type: String },
+      lastName: { type: String },
+      phoneNumber: { type: String },
+      address: { type: String },
+      city: { type: String },
+      state: { type: String },
+      postalCode: { type: String },
+      businessName: { type: String },
+      businessType: { type: String },
+      taxId: { type: String },
+      profilePicture: { type: String },
+      // Payment information for subcontractors
+      paymentInfo: { type: Object },
+      // Store when this role-specific profile was last updated
+      profileUpdatedAt: { type: Date },
+    },
+
     // Role-specific metadata
     metadata: {
       type: Object,

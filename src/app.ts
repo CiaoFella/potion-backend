@@ -45,6 +45,7 @@ import anomalyRoutes from './routes/anomalyRoutes';
 import { auth, unifiedAuth } from './middleware/auth';
 import devRoutes from './routes/devRoutes';
 import unifiedAuthRoutes from './routes/unifiedAuthRoutes';
+import externalProfileRoutes from './routes/externalProfileRoutes';
 import {
   setupAccountantAccount,
   accountantLogin,
@@ -161,6 +162,9 @@ app.post(
 
 // NEW: Unified authentication system routes (multi-role system)
 app.use('/api/unified-auth', unifiedAuthRoutes);
+
+// External user profile management routes (accountants and subcontractors)
+app.use('/api/external-profile', externalProfileRoutes);
 
 // File upload endpoint with basic auth (will be updated for RBAC)
 app.post('/api/upload', uploadF, uploadFileController);
