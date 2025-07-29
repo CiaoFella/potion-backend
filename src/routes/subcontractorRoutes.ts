@@ -270,15 +270,6 @@ router.post('/login', subcontractorController.subcontractorLogin);
  *         description: Server error
  */
 router.post('/invite/:id', async (req, res) => {
-  console.log('\n🎯 [DEBUG] POST /subcontractor/invite/:id route hit');
-  console.log('[DEBUG] Params:', req.params);
-  console.log('[DEBUG] Body:', JSON.stringify(req.body, null, 2));
-  console.log('[DEBUG] User ID:', req.user?.userId);
-  console.log('[DEBUG] Headers:', {
-    authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'None',
-    'content-type': req.headers['content-type'],
-  });
-
   try {
     await subcontractorController.inviteSubcontractor(req, res);
   } catch (error) {
@@ -323,14 +314,6 @@ router.post('/invite/:id', async (req, res) => {
  *         description: Server error
  */
 router.post('/', async (req, res) => {
-  console.log('\n📝 [DEBUG] POST /subcontractor/ route hit');
-  console.log('[DEBUG] Body:', JSON.stringify(req.body, null, 2));
-  console.log('[DEBUG] User ID:', req.user?.userId);
-  console.log('[DEBUG] Headers:', {
-    authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'None',
-    'content-type': req.headers['content-type'],
-  });
-
   try {
     await subcontractorController.createSubcontractor(req, res);
   } catch (error) {
@@ -360,14 +343,6 @@ router.post('/', async (req, res) => {
  *         description: Unauthorized
  */
 router.get('/all', async (req, res) => {
-  console.log('\n🚀 [DEBUG] /subcontractor/all route hit');
-  console.log('[DEBUG] User ID:', req.user?.userId);
-  console.log('[DEBUG] Auth data:', req.auth);
-  console.log('[DEBUG] Request headers:', {
-    authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'None',
-    'user-agent': req.headers['user-agent'],
-  });
-
   try {
     await subcontractorController.getAllSubcontractors(req, res);
   } catch (error) {

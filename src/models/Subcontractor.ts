@@ -9,7 +9,6 @@ const paymentInformationSchema = new mongoose.Schema(
       enum: ['bank', 'paypal', 'other'],
       required: true,
     },
-    // Bank-specific fields
     routingNumber: String,
     swiftCode: String,
     bankName: String,
@@ -23,9 +22,7 @@ const paymentInformationSchema = new mongoose.Schema(
       bankAddress: String,
       accountNumber: String,
     },
-    // PayPal-specific field
     paypalEmail: String,
-    // Other payment type
     paymentDescription: String,
   },
   { _id: false },
@@ -33,23 +30,20 @@ const paymentInformationSchema = new mongoose.Schema(
 
 const subcontractorSchema = new mongoose.Schema(
   {
-    // Remove single project constraint - now handled by SubcontractorProjectAccess
     isPasswordSet: {
       type: Boolean,
       default: false,
     },
     password: {
       type: String,
-      //required: true,
     },
     fullName: {
       type: String,
-      //required: true
     },
     email: {
       type: String,
       required: true,
-      unique: true, // Global unique email for multi-project access
+      unique: true,
     },
     businessName: String,
     note: String,
@@ -60,7 +54,7 @@ const subcontractorSchema = new mongoose.Schema(
       enum: ['individual', 'business'],
     },
     paymentInformation: paymentInformationSchema,
-    inviteKey: String, // Keep for backward compatibility but will phase out
+    inviteKey: String,
     passkey: String,
     // Password setup fields (unified with User and Accountant models)
     passwordSetupToken: String,
@@ -77,11 +71,10 @@ const subcontractorSchema = new mongoose.Schema(
       enum: ['invited', 'active', 'inactive'],
       default: 'invited',
     },
-    // Keep createdBy for backward compatibility, but it's less important now
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: false, // Made optional since they can work for multiple users
+      required: false,
     },
     deleted: { type: Boolean, default: false },
   },

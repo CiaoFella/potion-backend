@@ -50,9 +50,7 @@ const roleContextSchema = new mongoose.Schema(
       businessType: { type: String },
       taxId: { type: String },
       profilePicture: { type: String },
-      // Payment information for subcontractors
       paymentInfo: { type: Object },
-      // Store when this role-specific profile was last updated
       profileUpdatedAt: { type: Date },
     },
 
@@ -116,7 +114,7 @@ const userRolesSchema = new mongoose.Schema(
     // Role-specific password (each role has its own password)
     password: {
       type: String,
-      select: false, // Don't include by default for security
+      select: false,
     },
 
     isPasswordSet: {
@@ -192,16 +190,13 @@ userRolesSchema.virtual('roleDisplayName').get(function () {
 
 // Pre-save middleware to hash password
 userRolesSchema.pre('save', async function (next) {
-  // Only hash password if it's been modified and is not already hashed
   if (this.isModified('password') && this.password) {
-    // Check if password is already hashed (bcrypt hashes start with $2)
     if (!this.password.startsWith('$2')) {
       this.password = await bcrypt.hash(this.password, 12);
     }
     this.isPasswordSet = true;
   }
 
-  // Update lastAccessed when status changes to active
   if (this.isModified('status') && this.status === 'active') {
     this.lastAccessed = new Date();
   }
@@ -219,7 +214,6 @@ userRolesSchema.methods.comparePassword = async function (
 
 // Method to check if user has specific permission in this role
 userRolesSchema.methods.hasPermission = function (permission: string): boolean {
-  // Define permissions based on role type and access level
   const permissions = {
     [UserRoleType.BUSINESS_OWNER]: [
       'read',
@@ -250,7 +244,6 @@ userRolesSchema.methods.hasPermission = function (permission: string): boolean {
 
   let rolePermissions = permissions[this.roleType];
 
-  // For non-business-owner roles, get permissions based on access level
   if (typeof rolePermissions === 'object' && !Array.isArray(rolePermissions)) {
     rolePermissions = rolePermissions[this.accessLevel] || [];
   }
