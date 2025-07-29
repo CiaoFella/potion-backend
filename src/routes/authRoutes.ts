@@ -14,8 +14,12 @@ import {
   validatePasswordToken,
   resendPasswordSetup,
   googleCheck,
+  checkAvailableRoles,
+  unifiedLogin,
+  unifiedForgotPassword,
 } from '../controllers/authController';
 import { auth } from '../middleware/auth';
+import { rbacAuth, getCurrentUser } from '../middleware/rbac';
 import { uploadF } from '../middleware/upload';
 
 const router = express.Router();
@@ -188,6 +192,32 @@ router.post('/forgot-password', forgotPassword);
 
 /**
  * @swagger
+ * /api/auth/unified-forgot-password:
+ *   post:
+ *     summary: Unified forgot password for all user types
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               roleType:
+ *                 type: string
+ *                 enum: [user, accountant, subcontractor]
+ *     responses:
+ *       200:
+ *         description: Password reset email sent
+ *       404:
+ *         description: Account not found
+ */
+router.post('/unified-forgot-password', unifiedForgotPassword);
+
+/**
+ * @swagger
  * /api/auth/verify-otp:
  *   post:
  *     summary: Verify OTP for password reset
@@ -265,6 +295,65 @@ router.post('/refresh-token', refreshToken);
  *         description: Logout successful
  */
 router.post('/logout', auth, logout);
+
+/**
+ * @swagger
+ * /api/auth/info:
+ *   get:
+ *     summary: Get current user info (works for all user types)
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User info retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [user, accountant, subcontractor, admin]
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     profile:
+ *                       type: object
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/info', rbacAuth, async (req, res): Promise<void> => {
+  try {
+    const authInfo = getCurrentUser(req);
+
+    if (!authInfo.userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    // Build response based on user type
+    const response = {
+      user: {
+        id: authInfo.userId,
+        role: authInfo.role,
+        permissions: authInfo.permissions,
+        accessLevel: authInfo.accessLevel,
+      },
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error getting user info:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // Protected routes
 /**
@@ -358,5 +447,13 @@ router.delete('/', auth, deleteUser);
  *         description: Invalid request
  */
 router.put('/profile-picture', auth, uploadF, updateProfilePicture);
+
+// Unified Authentication Routes
+router.post('/check-roles', async (req, res) => {
+  await checkAvailableRoles(req, res);
+});
+router.post('/unified-login', async (req, res) => {
+  await unifiedLogin(req, res);
+});
 
 export default router;

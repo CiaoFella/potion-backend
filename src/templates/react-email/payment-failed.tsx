@@ -24,17 +24,19 @@ const PaymentFailedEmail: React.FC<PaymentFailedProps> = ({
       <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
       <Text style={components.text}>
-        We couldn't process your payment for your Potion subscription.
+        We had trouble processing your payment for your Potion subscription.
+        This happens sometimes - no worries!
       </Text>
 
-      <div style={statusBoxes.warning}>
-        <WarningIcon size={16} color="#d97706" />
-        <strong>Action required:</strong> Please update your payment method to
-        continue your service.
+      <div style={statusBoxes.info}>
+        <WarningIcon size={16} color="#2563eb" />
+        <strong>Quick fix needed:</strong> Update your payment method to keep
+        your account active.
       </div>
 
       <Text style={components.text}>
-        <strong>Don't worry - your account is still active for now.</strong>
+        <strong>Your account remains fully active</strong> while we sort this
+        out - you have {gracePeriod} to update your payment details.
       </Text>
 
       <Text style={components.text}>This usually happens when:</Text>
@@ -68,13 +70,13 @@ const PaymentFailedEmail: React.FC<PaymentFailedProps> = ({
 
       <Section style={components.buttonSection}>
         <Button href={billingUrl} style={components.button}>
-          Update Payment Method
+          Fix Payment Issue
         </Button>
       </Section>
 
       <Text style={components.text}>
-        To keep your Potion account active, please update your payment
-        information within <strong>{gracePeriod}</strong>.
+        This usually takes less than 2 minutes to resolve. Update your payment
+        information to keep everything running smoothly.
       </Text>
 
       <Text style={components.smallText}>

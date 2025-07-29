@@ -12,6 +12,24 @@ export const config = {
       : (process.env.NODE_ENV || 'DEV') === 'DEV'
         ? 'https://dev.potionapp.com'
         : 'https://my.potionapp.com'),
+  allowedOrigins: [
+    // Development URLs
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:3001',
+    // Production URLs
+    'https://potionapp.com',
+    'https://my.potionapp.com',
+    'https://api.potionapp.com',
+    // Development domain URLs
+    'https://dev.potionapp.com',
+    'https://dev-api.potionapp.com',
+    'https://potion-dev-api.vercel.app',
+    'https://backlog.go-potion.com',
+    'https://potion-dev-admin.vercel.app',
+    'https://potion-admin.vercel.app',
+    'https://potion-web-git-finhub-champ3oys-projects.vercel.app',
+  ],
   jwtSecret: process.env.JWT_SECRET as string,
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,

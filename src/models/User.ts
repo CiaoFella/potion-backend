@@ -39,6 +39,21 @@ const userSchema = new mongoose.Schema(
     postalCode: String,
     address: String,
     businessName: String,
+    businessType: String,
+    taxId: String,
+    paypalEmail: String,
+    paymentMethods: [
+      {
+        id: String,
+        type: { type: String, enum: ['bank', 'card'] },
+        accountName: String,
+        accountNumber: String,
+        routingNumber: String,
+        cardNumber: String,
+        expiryDate: String,
+        isDefault: { type: Boolean, default: false },
+      },
+    ],
     subscription: Object,
     tfa: { type: Boolean, default: false },
     startOfWeek: {

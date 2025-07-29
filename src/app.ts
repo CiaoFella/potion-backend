@@ -38,95 +38,83 @@ import { config } from './config/config';
 import { uploadF } from './middleware/upload';
 import http from 'http';
 import { initSocketIo } from './services/socket';
-import { subscribeToInternalEvents } from './services/events';
+import reportsRoutes from './routes/reportsRoutes';
+import plaidRoutes from './routes/plaidRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import anomalyRoutes from './routes/anomalyRoutes';
-import { Accountant, UserAccountantAccess } from './models/AccountantAccess';
 import { auth, unifiedAuth } from './middleware/auth';
-import reportsRoutes from './routes/reportsRoutes';
 import devRoutes from './routes/devRoutes';
+import unifiedAuthRoutes from './routes/unifiedAuthRoutes';
+import externalProfileRoutes from './routes/externalProfileRoutes';
+import {
+  setupAccountantAccount,
+  accountantLogin,
+} from './controllers/accountantController';
+import { subcontractorController } from './controllers/subcontractorController';
 
-//Hooks registration
-import './models/Subcontractor';
-import './models/TimeTracker';
-import './models/Client';
-import './models/CRMCategory';
-import './models/Contract';
-import './models/Invoice';
-import './models/Project';
-import './models/Transaction';
-import './models/User';
-import './models/Chat';
-import './models/Admin';
-import './models/Client';
-import './models/Files';
-import './models/Contract';
-import './models/Anomalies';
-import './models/AccountantAccess';
-import plaidRoutes from './routes/plaidRoutes';
-import { generateDownloadUrl } from './middleware/download';
-import { handleStripeWebhook } from './controllers/webhookController';
+// Import the new RBAC middleware
+import {
+  rbacAuth,
+  checkWritePermission,
+  enforceProjectAccess,
+  UserRole,
+  Permission,
+  requireRole,
+  requirePermission,
+} from './middleware/rbac';
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5000;
 const app = express();
-let origin =
-  process.env.NODE_ENV === 'DEV'
-    ? [
-        'https://potion-dev-api.vercel.app',
-        'https://dev.go-potion.com',
-        'https://dev.potionapp.com',
-        'https://dev-api.potionapp.com',
-        'https://backlog.go-potion.com',
-        'https://potion-dev-admin.vercel.app',
-        'https://potion-web-git-finhub-champ3oys-projects.vercel.app',
-      ]
-    : [
-        'https://potionapp.com',
-        'https://my.potionapp.com',
-        'https://api.potionapp.com',
-        'https://potion-admin.vercel.app',
-        'https://potion-web-git-finhub-champ3oys-projects.vercel.app',
-      ];
-origin.push(
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:3001',
-);
+const PORT = config.port || 5000;
 
-// Mount Stripe webhook BEFORE JSON parsing to preserve raw body for signature verification
-app.post(
-  '/api/pay/webhook',
-  express.raw({ type: 'application/json' }),
-  handleStripeWebhook,
-);
-
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// CORS configuration
 app.use(
   cors({
-    origin,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
+    origin: config.allowedOrigins,
+    credentials: true,
   }),
 );
-const server = http.createServer(app);
-initSocketIo(server, origin);
 
+// Connect to MongoDB
 connectDB();
 
-// Swagger options
-const swaggerOptions = {
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+  });
+});
+
+// Swagger setup
+const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Go Potion API',
+      title: 'Potion API',
       version: '1.0.0',
-      description: 'Documentation for the Go Potion API',
+      description: 'API documentation for Potion application',
     },
-    servers: [{ url: config.baseURL }, { url: 'http://localhost:5000' }],
+    servers: [
+      {
+        url: config.baseURL,
+        description: 'Development server',
+      },
+    ],
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
       schemas: {
         User: mongooseToSwagger(User),
         Client: mongooseToSwagger(Client),
@@ -134,21 +122,7 @@ const swaggerOptions = {
         Contract: mongooseToSwagger(Contract),
         Project: mongooseToSwagger(Project),
         Transaction: mongooseToSwagger(Transaction),
-        TimeTracker: mongooseToSwagger(Project),
         PlaidItem: mongooseToSwagger(PlaidItem),
-        Accountant: mongooseToSwagger(Accountant),
-        UserAccountantAccess: mongooseToSwagger(UserAccountantAccess),
-        // Anomalies: mongooseToSwagger(Anomalies),
-
-        // SignUpDto: mongooseToSwagger(SignUpDto),
-        // LoginDto: mongooseToSwagger(LoginDto),
-      },
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-        },
       },
     },
     security: [
@@ -160,85 +134,237 @@ const swaggerOptions = {
   apis: ['./src/routes/*.ts'],
 };
 
-const swaggerDocs = swaggerJsdoc(swaggerOptions);
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-app.get('/api-docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerDocs);
-});
+const specs = swaggerJsdoc(options);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
-// Routes to protect with unified auth that supports both user and accountant tokens
+// Webhook routes (no auth required)
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  stripeRoutes,
+);
+
+// Public routes (no authentication required)
+app.use('/api/auth', authRoutes); // Login, signup, password reset, etc.
+app.use('/api/unified-auth', unifiedAuthRoutes); // New unified role-based authentication
+app.use('/api/pay', stripeRoutes); // Stripe payment routes
+app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/admin', adminRoutes);
+
+// LEGACY: Old external user auth routes - DEPRECATED in favor of unified auth system
+// These routes are kept for backward compatibility during transition
+app.post('/api/accountant/setup-account', setupAccountantAccount); // DEPRECATED: Use /api/unified-auth/setup-password/:token
+app.post('/api/accountant/login', accountantLogin); // DEPRECATED: Use /api/unified-auth/login
+app.post(
+  '/api/subcontractor/login',
+  subcontractorController.subcontractorLogin, // DEPRECATED: Use /api/unified-auth/login
+);
+
+// NEW: Unified authentication system routes (multi-role system)
+app.use('/api/unified-auth', unifiedAuthRoutes);
+
+// External user profile management routes (accountants and subcontractors)
+app.use('/api/external-profile', externalProfileRoutes);
+
+// File upload endpoint with basic auth (will be updated for RBAC)
+app.post('/api/upload', uploadF, uploadFileController);
+
+// RBAC-protected routes with subscription check for main users
+const protectedWithSubscription = [
+  rbacAuth,
+  checkSubscriptionAccess,
+  checkWritePermission,
+];
+
+// RBAC-protected routes without subscription check (for external users)
+const protectedExternal = [rbacAuth, checkWritePermission];
+
+// Main user routes (require subscription)
+app.use(
+  '/api/client',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  clientRoutes,
+);
+
 app.use(
   '/api/transaction',
-  unifiedAuth,
-  checkSubscriptionAccess,
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
   transactionRoutes,
 );
-app.use('/api/invoice', unifiedAuth, checkSubscriptionAccess, invoiceRoutes);
-app.use('/api/client', unifiedAuth, checkSubscriptionAccess, clientRoutes);
-app.use('/api/project', unifiedAuth, checkSubscriptionAccess, projectRoutes);
-app.use('/api/contract', unifiedAuth, checkSubscriptionAccess, contractRoutes);
+
 app.use(
-  '/api/timetracker',
-  unifiedAuth,
-  checkSubscriptionAccess,
-  timeTrackerRoutes,
+  '/api/plaid',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  plaidRoutes,
 );
-app.use('/api/search', unifiedAuth, checkSubscriptionAccess, searchRoute);
+
 app.use(
   '/api/analytics',
-  unifiedAuth,
-  checkSubscriptionAccess,
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
   analyticsRoutes,
 );
 
-// Routes that continue using standard auth
-app.use('/api/auth', authRoutes);
-app.use('/api/crm', auth, checkSubscriptionAccess, crmRoutes);
+app.use(
+  '/api/anomalies',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  anomalyRoutes,
+);
+
+app.use(
+  '/api/project',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT, UserRole.SUBCONTRACTOR),
+  enforceProjectAccess,
+  projectRoutes,
+);
+
+app.use(
+  '/api/contract',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  contractRoutes,
+);
+
+app.use(
+  '/api/invoice',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  invoiceRoutes,
+);
+
+app.use(
+  '/api/crm',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  crmRoutes,
+);
+
+app.use(
+  '/api/reports',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  reportsRoutes,
+);
+
+app.use(
+  '/api/timetracker',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT, UserRole.SUBCONTRACTOR),
+  timeTrackerRoutes,
+);
+
+app.use(
+  '/api/chat',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  chatRoute,
+);
+
+app.use(
+  '/api/search',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  searchRoute,
+);
+
+app.use(
+  '/api/user-globals',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  globalsRoutes,
+);
+
+app.use(
+  '/api/user-write-offs',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  userWriteOffRoutes,
+);
+
+// External user routes (no subscription required)
+// Note: setup-account and login are handled as public routes above
+app.use(
+  '/api/accountant',
+  ...protectedExternal,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT), // Users can manage accountants, accountants can access their own data
+  accountantRoutes,
+);
+
+// Mount subcontractor routes with RBAC (external users - no subscription required)
 app.use(
   '/api/subcontractor',
-  auth,
-  checkSubscriptionAccess,
+  ...protectedExternal,
+  requireRole(UserRole.USER, UserRole.SUBCONTRACTOR), // Allow both users and subcontractors
   subcontractorRoutes,
 );
-app.use('/api/waitlist', waitlistRoutes);
-app.use('/api/pay', stripeRoutes);
-app.use('/api/chat', chatRoute);
-app.use('/api/upload-file', uploadF, uploadFileController);
-app.use('/api/download-file/:fileName', generateDownloadUrl);
-app.use('/api/accountant', accountantRoutes);
-app.use('/api/user-globals', auth, checkSubscriptionAccess, globalsRoutes);
-app.use('/api/write-offs', auth, checkSubscriptionAccess, userWriteOffRoutes);
-// Admin routes
-app.use('/api/admin', adminRoutes);
 
-// Add Plaid routes
-app.use('/api/plaid', plaidRoutes);
-
-// Add anomaly routes
-app.use('/api/anomalies', checkSubscriptionAccess, anomalyRoutes);
-
-// Register reports routes
-app.use('/api/reports', checkSubscriptionAccess, reportsRoutes);
-
-// Development routes (only in development)
+// Development routes
 if (process.env.NODE_ENV === 'development') {
-  app.use('/dev', devRoutes);
+  app.use(
+    '/api/dev',
+    rbacAuth,
+    requireRole(UserRole.ADMIN, UserRole.USER),
+    devRoutes,
+  );
 }
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Error handling middleware
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('Error:', err);
 
-/**
- * Initialize the cron jobs
- */
-subscribeToInternalEvents();
-initSubscriptionStatusCron();
+  // Handle specific error types
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      message: 'Validation Error',
+      errors: Object.values(err.errors).map((e: any) => e.message),
+    });
+  }
 
-// Initialize CRM action update cron job
-// This cron job runs every hour (at minute 0) to update empty CRM actions
-// For example: 1:00, 2:00, 3:00, etc.
-cron.schedule('0 * * * *', async () => {
-  await updateEmptyCRMActions();
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      message: 'Invalid ID format',
+    });
+  }
+
+  // Default error response
+  res.status(500).json({
+    message: 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && {
+      error: err.message,
+      stack: err.stack,
+    }),
+  });
 });
 
-// updateEmptyCRMActions()
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
+  res.status(404).json({
+    message: 'Route not found',
+    path: req.originalUrl,
+    method: req.method,
+  });
+});
+
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+initSocketIo(server, config.allowedOrigins);
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`API Documentation: ${config.baseURL}/api-docs`);
+
+  // Initialize cron jobs
+  if (process.env.NODE_ENV === 'production') {
+    initSubscriptionStatusCron();
+    updateEmptyCRMActions();
+  }
+});
+
+export default app;
