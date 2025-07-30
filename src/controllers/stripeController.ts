@@ -276,8 +276,21 @@ export const createCustomerPortal = async (
     const { returnUrl } = req.body;
 
     const user = await User.findById(userId);
-    if (!user || !user.subscription?.stripeCustomerId) {
-      return res.status(404).json({ message: 'User or customer not found' });
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Check if user has completed subscription setup
+    if (!user.subscription?.stripeCustomerId) {
+      return res.status(400).json({
+        message:
+          'Subscription not found. Please complete your subscription setup to access billing management.',
+        code: 'SUBSCRIPTION_INCOMPLETE',
+        action: 'COMPLETE_SUBSCRIPTION',
+      });
     }
 
     const portalSession = await createBillingPortalSession(
