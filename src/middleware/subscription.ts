@@ -48,10 +48,12 @@ export const checkSubscriptionAccess = async (
     // Get user ID from request (set by auth middleware)
     const userId = req.user?.userId;
     if (!userId) {
-      res.status(401).json({
-        message: 'Authentication required',
-        subscriptionRequired: false,
-      });
+      if (!res.headersSent) {
+        res.status(401).json({
+          message: 'Authentication required',
+          subscriptionRequired: false,
+        });
+      }
       return;
     }
 
@@ -88,10 +90,13 @@ export const checkSubscriptionAccess = async (
     next();
   } catch (error) {
     console.error('Subscription access check error:', error);
-    res.status(500).json({
-      message: 'Internal server error',
-      subscriptionRequired: false,
-    });
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: 'Internal server error',
+        subscriptionRequired: false,
+      });
+    }
   }
 };
 

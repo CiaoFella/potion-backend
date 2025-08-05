@@ -51,6 +51,7 @@ import {
   accountantLogin,
 } from './controllers/accountantController';
 import { subcontractorController } from './controllers/subcontractorController';
+import { handleStripeWebhook } from './controllers/webhookController';
 
 // Import the new RBAC middleware
 import {
@@ -67,6 +68,13 @@ dotenv.config();
 
 const app = express();
 const PORT = config.port || 5000;
+
+// Webhook routes MUST come before express.json() to receive raw body
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  handleStripeWebhook,
+);
 
 // Middleware
 app.use(express.json());
@@ -136,13 +144,6 @@ const options = {
 
 const specs = swaggerJsdoc(options);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
-
-// Webhook routes (no auth required)
-app.post(
-  '/api/webhooks/stripe',
-  express.raw({ type: 'application/json' }),
-  stripeRoutes,
-);
 
 // Public routes (no authentication required)
 app.use('/api/auth', authRoutes); // Login, signup, password reset, etc.

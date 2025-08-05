@@ -306,3 +306,48 @@ export const createCustomerPortal = async (
       .json({ message: 'Failed to create customer portal', error });
   }
 };
+
+// Get customer email from checkout session
+export const getSessionCustomerEmail = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ message: 'Session ID is required' });
+    }
+
+    // Retrieve the checkout session from Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    // Get customer email
+    let customerEmail = session.customer_details?.email;
+
+    // If no email in session, try to get it from the customer object
+    if (!customerEmail && session.customer) {
+      const customer = await stripe.customers.retrieve(
+        session.customer as string,
+      );
+      customerEmail = (customer as Stripe.Customer).email;
+    }
+
+    res.json({
+      sessionId: session.id,
+      customerEmail,
+      customerName: session.customer_details?.name,
+      status: session.status,
+    });
+  } catch (error) {
+    console.error('Error retrieving session:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve session data',
+      error,
+    });
+  }
+};
