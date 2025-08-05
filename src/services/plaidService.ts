@@ -20,6 +20,7 @@ export class PlaidService {
         transactions: {
           days_requested: 700,
         },
+        access_token: existingToken ? existingToken : undefined,
       };
 
       const response = await plaidClient.linkTokenCreate(configs);

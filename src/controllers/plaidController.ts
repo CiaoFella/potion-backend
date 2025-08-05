@@ -1,3 +1,4 @@
+import { accountId } from './../../node_modules/aws-sdk/clients/health.d';
 import { Request, Response } from "express";
 import { PlaidService } from "../services/plaidService";
 import { PlaidItem } from "../models/PlaidItem";
@@ -7,12 +8,24 @@ import { BalanceCalculationService } from "../services/balanceCalculationService
 export const plaidController = {
   async createLinkToken(req: Request, res: Response): Promise<void> {
     try {
+      const { itemId } = req.body;
       // Use X-User-ID header if available
-      const userId =
+      const userId =  
         req.header("X-User-ID") || req.user?.userId || req.user?.id;
       console.log("[createLinkToken] Using userId:", userId);
+      console.log('zLdZGnnk6LsZkP4n47XlIKpkE1JJdJHlN53J4', itemId)
+  
+      const plaidItem = await PlaidItem.find({ userId: userId });
 
-      const linkToken = await PlaidService.createLinkToken(userId);
+      plaidItem.map((item) => console.log(item.itemId))
+
+      console.log("plaidItem", plaidItem.length);
+      
+      
+      const linkToken = await PlaidService.createLinkToken(userId, req.body.existingToken as string ?? '');
+      
+      
+      
       res.json(linkToken);
     } catch (error: any) {
       console.error("[createLinkToken] Error:", error.message);
