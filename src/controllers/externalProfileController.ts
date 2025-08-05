@@ -1,6 +1,22 @@
 import { Request, Response } from 'express';
-import { User } from '../models/User';
 import { UserRoles, UserRoleType } from '../models/UserRoles';
+import { User } from '../models/User';
+
+// TypeScript interface for role profile
+interface RoleProfile {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  businessName?: string;
+  businessType?: string;
+  taxId?: string;
+  profilePicture?: string;
+  paymentInfo?: Record<string, any>;
+}
 
 export interface PaymentMethod {
   id: string;
@@ -57,7 +73,7 @@ export const getPersonalInfo = async (
     }
 
     // Use role-specific profile data if available, otherwise fall back to main User data
-    const roleProfile = userRole.roleContext?.profile || {};
+    const roleProfile = userRole.roleContext?.profile || ({} as RoleProfile);
 
     res.json({
       success: true,
