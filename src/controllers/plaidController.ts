@@ -1,5 +1,6 @@
+import { tests } from './../../node_modules/tsconfig-paths/src/__tests__/data/match-path-data';
 import { accountId } from './../../node_modules/aws-sdk/clients/health.d';
-import { Request, Response } from "express";
+import e, { Request, Response } from "express";
 import { PlaidService } from "../services/plaidService";
 import { PlaidItem } from "../models/PlaidItem";
 import { Transaction } from "../models/Transaction";
@@ -11,22 +12,24 @@ export const plaidController = {
     try {
       const { itemId } = req.body;
       // Use X-User-ID header if available
-      const userId =  
+      const userId =
         req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[createLinkToken] Using userId:", userId);
-      console.log('zLdZGnnk6LsZkP4n47XlIKpkE1JJdJHlN53J4', itemId)
-  
+
       const plaidItem = await PlaidItem.find({ userId: userId });
+      let existingToken = '';
 
-      plaidItem.map((item) => console.log(item.itemId))
 
-      console.log("plaidItem", plaidItem.length);
-      
-      
-      const linkToken = await PlaidService.createLinkToken(userId, req.body.existingToken as string ?? '');
-      
-      
-      
+      plaidItem.find(async (item) => {
+        item.accounts.find(accounts => {
+          if (accounts?.accountId === itemId) {
+            existingToken = item.accessToken;
+          }
+        });
+      });
+
+
+      const linkToken = await PlaidService.createLinkToken(userId, existingToken);
+
       res.json(linkToken);
     } catch (error: any) {
       console.error("[createLinkToken] Error:", error.message);
@@ -183,9 +186,14 @@ export const plaidController = {
       await Transaction.deleteMany({ bankAccount: account.accountId });
 
       // remove the account from the accounts array
-      await PlaidItem.findByIdAndUpdate(plaidItem._id, {
-        $pull: { accounts: { accountId: plaidItemId } },
-      });
+      if (plaidItem.accounts.length > 1) {
+        await PlaidItem.findByIdAndUpdate(plaidItem._id, {
+          $pull: { accounts: { accountId: plaidItemId } },
+        });
+      } else {
+        await PlaidItem.findByIdAndDelete(plaidItem._id)
+      }
+
 
       res.json({ message: "Plaid item deleted successfully" });
     } catch (error: any) {

@@ -4,6 +4,7 @@ import { Transaction } from "../models/Transaction";
 import { Types } from "mongoose";
 import { CountryCode, LinkTokenCreateRequest, Products } from "plaid";
 import { BalanceCalculationService } from "./balanceCalculationService";
+import { use } from "react";
 
 export class PlaidService {
   static async createLinkToken(userId: string, existingToken?: string) {
@@ -19,6 +20,9 @@ export class PlaidService {
         webhook: `${process.env.API_URL}api/plaid/webhook`,
         transactions: {
           days_requested: 700,
+        },
+        update: {
+            account_selection_enabled: !!existingToken,
         },
         access_token: existingToken ? existingToken : undefined,
       };
