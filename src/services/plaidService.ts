@@ -1,3 +1,5 @@
+import { plaidController } from './../controllers/plaidController';
+import { P90 } from './../../node_modules/aws-sdk/clients/iotwireless.d';
 import { plaidClient } from "../config/plaid";
 import { PlaidItem } from "../models/PlaidItem";
 import { Transaction } from "../models/Transaction";
@@ -5,6 +7,14 @@ import { Types } from "mongoose";
 import { CountryCode, LinkTokenCreateRequest, Products } from "plaid";
 import { BalanceCalculationService } from "./balanceCalculationService";
 
+
+enum PlaidWebhookCode {
+  "userPermissionRevoked" = "USER_PERMISSION_REVOKED",
+  "initialUpdate" = "INITIAL_UPDATE",
+  "historicalUpdate" = "HISTORICAL_UPDATE",
+  "defaultUpdate" = "DEFAULT_UPDATE",
+  "syncUpdatesAvailable" = "SYNC_UPDATES_AVAILABLE",
+}
 export class PlaidService {
   static async createLinkToken(userId: string) {
     try {
@@ -18,11 +28,24 @@ export class PlaidService {
         language: "en",
         webhook: `${process.env.API_URL}api/plaid/webhook`,
         transactions: {
-          days_requested: 700,
+          days_requested: 730,
         },
       };
 
       const response = await plaidClient.linkTokenCreate(configs);
+      return response.data;
+    } catch (error) {
+      console.error("Error creating link token:", error);
+      throw error;
+    }
+  }
+
+  static async removeItem(access_token: string) {
+    try {
+      const response = await plaidClient.itemRemove({
+        access_token
+      });
+
       return response.data;
     } catch (error) {
       console.error("Error creating link token:", error);
@@ -219,10 +242,38 @@ export class PlaidService {
     }
   }
 
+  static async deletePlaidItem(itemId: string) {
+    try {
+      let plaidItem = await PlaidItem.findOne({
+        itemId
+      });
+
+      if (!plaidItem) {
+        return;
+      }
+
+      plaidItem.accounts?.map(async (account) => {
+          await Transaction.deleteMany({ bankAccount: account.accountId });
+      })
+
+      await PlaidService.removeItem(plaidItem.accessToken);
+      await PlaidItem.deleteOne({ _id: plaidItem._id });    
+    } catch (error: any) {
+      console.error("[PlaidService] Error deleting Plaid item:", error.message);
+      throw error;
+    }
+  }
+
   static async handleWebhook(webhookData: any) {
     try {
       const { webhook_type, webhook_code, item_id } = webhookData;
       console.log(`Received webhook: ${webhookData}`);
+
+      if (webhook_type === "ITEM") {
+        if (webhook_code === PlaidWebhookCode.userPermissionRevoked) {
+          this.deletePlaidItem(item_id);
+        }
+      }
 
       if (webhook_type === "TRANSACTIONS") {
         const plaidItem = await PlaidItem.findOne({ itemId: item_id });
