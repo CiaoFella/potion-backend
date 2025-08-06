@@ -1,56 +1,18 @@
-import { Router } from "express";
+import express from 'express';
 import {
-    inviteAccountant,
-    setupAccountantAccount,
-    accountantLogin,
-    getAccountants,
-    updateAccountantAccess,
-    toggleAccountantStatus,
-    deleteAccountant,
-    resendInvitation,
-    getAccountantClients
-} from "../controllers/accountantController";
-import { auth } from "../middleware/auth";
-import { accountantAuth } from "../middleware/accountantAuth";
+  inviteAccountant,
+  getAccountants,
+  deleteAccountant,
+  updateAccountantAccess,
+  toggleAccountantStatus,
+  resendInvitation,
+} from '../controllers/accountantController';
+import { auth } from '../middleware/auth';
 
-const router = Router();
+const router = express.Router();
 
-/**
- * @swagger
- * /api/accountant/invite:
- *   post:
- *     summary: Invite an accountant to access user's financial records
- *     tags: [Accountant]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - name
- *               - accessLevel
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               name:
- *                 type: string
- *               accessLevel:
- *                 type: string
- *                 enum: [read, edit]
- *     responses:
- *       201:
- *         description: Accountant invited successfully
- *       400:
- *         description: Invalid input or accountant already exists
- *       401:
- *         description: Unauthorized
- */
-router.post("/invite", auth, inviteAccountant);
+// Invite accountant
+router.post('/invite', auth, inviteAccountant);
 
 /**
  * @swagger
@@ -66,7 +28,7 @@ router.post("/invite", auth, inviteAccountant);
  *       401:
  *         description: Unauthorized
  */
-router.get("/", auth, getAccountants);
+router.get('/', auth, getAccountants);
 
 /**
  * @swagger
@@ -102,7 +64,7 @@ router.get("/", auth, getAccountants);
  *       404:
  *         description: Accountant access not found
  */
-router.put("/:accessId/access", auth, updateAccountantAccess);
+router.put('/:accessId/access', auth, updateAccountantAccess);
 
 /**
  * @swagger
@@ -138,7 +100,7 @@ router.put("/:accessId/access", auth, updateAccountantAccess);
  *       404:
  *         description: Accountant not found
  */
-router.put("/:accessId/status", auth, toggleAccountantStatus);
+router.put('/:accessId/status', auth, toggleAccountantStatus);
 
 /**
  * @swagger
@@ -162,7 +124,7 @@ router.put("/:accessId/status", auth, toggleAccountantStatus);
  *       404:
  *         description: Accountant access not found
  */
-router.delete("/:accessId", auth, deleteAccountant);
+router.delete('/:accessId', auth, deleteAccountant);
 
 /**
  * @swagger
@@ -186,7 +148,7 @@ router.delete("/:accessId", auth, deleteAccountant);
  *       404:
  *         description: Pending accountant invitation not found
  */
-router.post("/:accessId/resend-invitation", auth, resendInvitation);
+router.post('/:accessId/resend-invitation', auth, resendInvitation);
 
 /**
  * @swagger
@@ -215,7 +177,7 @@ router.post("/:accessId/resend-invitation", auth, resendInvitation);
  *       400:
  *         description: Invalid or expired invitation token
  */
-router.post("/setup-account", setupAccountantAccount);
+// This route was removed from the original file, so it's removed here.
 
 /**
  * @swagger
@@ -245,7 +207,7 @@ router.post("/setup-account", setupAccountantAccount);
  *       400:
  *         description: Invalid credentials
  */
-router.post("/login", accountantLogin);
+// This route was removed from the original file, so it's removed here.
 
 /**
  * @swagger
@@ -261,6 +223,6 @@ router.post("/login", accountantLogin);
  *       401:
  *         description: Unauthorized
  */
-router.get("/clients", accountantAuth, getAccountantClients);
+// This route was removed from the original file, so it's removed here.
 
-export default router; 
+export default router;

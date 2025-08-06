@@ -31,18 +31,17 @@ const CheckoutAbandonedEmail: React.FC<CheckoutAbandonedProps> = ({
       <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
       <Text style={components.text}>
-        We noticed you started signing up for Potion but didn't complete the
-        process.
+        We noticed you were interested in Potion but didn't finish setting up
+        your account. We're here to help if you ran into any issues!
       </Text>
 
       <div style={statusBoxes.info}>
         <ClockIcon size={16} color="#2563eb" />
-        <strong>Your 7-day free trial is waiting for you!</strong>
+        <strong>Complete your setup and start your free trial</strong>
       </div>
 
       <Text style={components.text}>
-        Don't miss out on automating your business operations with these
-        powerful features:
+        Here's what thousands of business owners are already using Potion for:
       </Text>
 
       <FeaturesList />

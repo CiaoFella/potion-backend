@@ -1,10 +1,52 @@
-import { Request, Response } from "express";
-import { Contract } from "../models/Contract";
-import { Client } from "../models/Client";
-import { getSignedDownloadUrl } from "../services/storageService";
-import { sendEmail } from "../services/emailService";
-import { Project } from "../models/Project";
-import { config } from "../config/config";
+import { Request, Response } from 'express';
+import { Contract } from '../models/Contract';
+import { Client } from '../models/Client';
+import { getSignedDownloadUrl } from '../services/storageService';
+import { sendEmail } from '../services/emailService';
+import { reactEmailService } from '../services/reactEmailService';
+import { Project } from '../models/Project';
+import { config } from '../config/config';
+
+// Email service functions
+const sendContractShareEmail = async (
+  emails: string[],
+  contractType: string,
+  contractUrl: string,
+  senderName?: string,
+) => {
+  try {
+    const props = {
+      contractType,
+      contractUrl,
+      senderName: senderName || 'Your business partner',
+    };
+
+    const { subject, html } = await reactEmailService.renderTemplate(
+      'contract-share',
+      props,
+    );
+
+    // Send to each email individually to ensure delivery
+    for (const email of emails) {
+      await sendEmail({
+        to: email,
+        subject,
+        html,
+      });
+    }
+  } catch (error) {
+    console.error('Error sending contract share email:', error);
+
+    // Fallback to basic email
+    for (const email of emails) {
+      await sendEmail({
+        to: email,
+        subject: `You have received a ${contractType} contract`,
+        text: `Use this link to view the contract ${contractUrl}`,
+      });
+    }
+  }
+};
 
 export const contractController = {
   async createContract(req: Request, res: Response): Promise<any> {
@@ -69,14 +111,14 @@ export const contractController = {
       }
 
       res.status(201).json({
-        message: "Contract created successfully",
+        message: 'Contract created successfully',
         contract: await Contract.findById(contract._id)
-          .populate("client")
-          .populate("project"),
+          .populate('client')
+          .populate('project'),
       });
     } catch (error) {
-      console.error("Contract creation error:", error);
-      res.status(500).json({ message: "Server error" });
+      console.error('Contract creation error:', error);
+      res.status(500).json({ message: 'Server error' });
     }
   },
 
@@ -94,24 +136,25 @@ export const contractController = {
 
       if (contract) {
         // let client = await Client.findById(contract.client);
-        await sendEmail({
-          to: emails,
-          subject: `You have received a ${contract.type} contract`,
-          text: `Use this link to view the contract ${req?.headers?.origin}/p/contract/${contract._id}`,
-        });
+        await sendContractShareEmail(
+          emails,
+          contract.type,
+          `${req?.headers?.origin}/p/contract/${contract._id}`,
+          'Your business partner', // You can get this from user context if available
+        );
       }
 
       res.status(201).json({
-        message: "contract created successfully",
+        message: 'contract created successfully',
         contract: await Contract.findByIdAndUpdate(contract._id, {
-          status: "Sent",
+          status: 'Sent',
         })
-          .populate("client")
-          .populate("project"),
+          .populate('client')
+          .populate('project'),
       });
     } catch (error) {
-      console.error("Invoice creation error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Invoice creation error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -143,7 +186,7 @@ export const contractController = {
 
       const contract = await Contract.findById(contractId);
       if (!contract) {
-        return res.status(404).json({ message: "Contract not found" });
+        return res.status(404).json({ message: 'Contract not found' });
       }
 
       if (type) contract.type = type;
@@ -155,7 +198,7 @@ export const contractController = {
       if (amount) contract.amount = amount;
       if (status)
         contract.status =
-          contract?.status === "Completed" &&
+          contract?.status === 'Completed' &&
           contract?.party &&
           contract.clientSign
             ? contract?.status
@@ -183,11 +226,11 @@ export const contractController = {
       }
 
       res.json({
-        message: "Contract updated successfully",
+        message: 'Contract updated successfully',
       });
     } catch (error) {
-      console.error("Contract update error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Contract update error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -199,13 +242,13 @@ export const contractController = {
         deleted: { $ne: true },
       })
         .sort({ updatedAt: -1 })
-        .populate("client")
-        .populate("project");
+        .populate('client')
+        .populate('project');
 
       res.json(contracts);
     } catch (error) {
-      console.error("Get contracts error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Get contracts error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -215,28 +258,28 @@ export const contractController = {
       const contractId = req.params.contractId;
 
       if (!contractId) {
-        return res.status(400).json({ message: "Contract ID is required" });
+        return res.status(400).json({ message: 'Contract ID is required' });
       }
       const contract = await Contract.findOne({
         createdBy: userId,
         _id: contractId,
-      }).populate("client");
+      }).populate('client');
 
       if (!contract) {
-        return res.status(404).json({ message: "Contract not found" });
+        return res.status(404).json({ message: 'Contract not found' });
       }
 
       let uri = contract?.logo?.fileName
         ? await getSignedDownloadUrl(
-            contract!.logo!.fileName || "",
-            contract!.logo!.fileType || ""
+            contract!.logo!.fileName || '',
+            contract!.logo!.fileType || '',
           )
-        : "";
+        : '';
 
       res.json({ ...contract.toObject(), logo: { uri } });
     } catch (error) {
-      console.error("Get clients error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Get clients error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -245,25 +288,25 @@ export const contractController = {
       const contractId = req.params.contractId;
 
       if (!contractId) {
-        return res.status(400).json({ message: "Contract ID is required" });
+        return res.status(400).json({ message: 'Contract ID is required' });
       }
-      const contract = await Contract.findById(contractId).populate("client");
+      const contract = await Contract.findById(contractId).populate('client');
 
       if (!contract) {
-        return res.status(404).json({ message: "Contract not found" });
+        return res.status(404).json({ message: 'Contract not found' });
       }
 
       let uri = contract?.logo?.fileName
         ? await getSignedDownloadUrl(
-            contract!.logo!.fileName || "",
-            contract!.logo!.fileType || ""
+            contract!.logo!.fileName || '',
+            contract!.logo!.fileType || '',
           )
-        : "";
+        : '';
 
       res.json({ ...contract.toObject(), logo: { uri } });
     } catch (error) {
-      console.error("Get clients error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Get clients error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -274,24 +317,24 @@ export const contractController = {
 
       // Find the original contract
       const originalContract = await Contract.findById(contractId)
-        .populate("client")
-        .populate("project");
+        .populate('client')
+        .populate('project');
       if (!originalContract) {
-        return res.status(404).json({ message: "Contract not found" });
+        return res.status(404).json({ message: 'Contract not found' });
       }
 
       // Create a new contract with the same details
       const newContract = new Contract({
         type: originalContract.type,
         documentName: originalContract.documentName
-          ? "Copy of " + originalContract.documentName
-          : "Copy of " + originalContract?.party?.name + "-" + " NDA",
+          ? 'Copy of ' + originalContract.documentName
+          : 'Copy of ' + originalContract?.party?.name + '-' + ' NDA',
         recipients: originalContract.recipients,
         contractEmail: originalContract.contractEmail,
         project: originalContract.project,
         client: originalContract.client,
         amount: originalContract.amount,
-        status: "Draft",
+        status: 'Draft',
         issueDate: originalContract.issueDate,
         dueDate: originalContract.dueDate,
         responsibilities: originalContract.responsibilities,
@@ -313,14 +356,14 @@ export const contractController = {
       }
 
       res.status(201).json({
-        message: "Contract duplicated successfully",
+        message: 'Contract duplicated successfully',
         contract: await Contract.findById(newContract._id)
-          .populate("client")
-          .populate("project"),
+          .populate('client')
+          .populate('project'),
       });
     } catch (error) {
-      console.error("Contract duplication error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Contract duplication error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -333,29 +376,29 @@ export const contractController = {
       const contract = await Contract.findOneAndUpdate(
         { _id: contractId, createdBy: userId },
         { deleted: true },
-        { new: true }
+        { new: true },
       );
 
       if (!contract) {
         return res
           .status(404)
-          .json({ message: "contract not found or already deleted" });
+          .json({ message: 'contract not found or already deleted' });
       }
 
       // delete from project
       // Remove the contract from the associated project
       await Project.findOneAndUpdate(
         { contracts: contractId },
-        { $pull: { contracts: contractId } }
+        { $pull: { contracts: contractId } },
       );
 
       res.json({
-        message: "contract deleted successfully",
+        message: 'contract deleted successfully',
         contract,
       });
     } catch (error) {
-      console.error("contract deletion error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('contract deletion error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -368,22 +411,22 @@ export const contractController = {
       const contract = await Contract.findOneAndUpdate(
         { _id: contractId, createdBy: userId },
         { deleted: false },
-        { new: true }
+        { new: true },
       );
 
       if (!contract) {
         return res
           .status(404)
-          .json({ message: "contract not found or already deleted" });
+          .json({ message: 'contract not found or already deleted' });
       }
 
       res.json({
-        message: "contract deleted successfully",
+        message: 'contract deleted successfully',
         contract,
       });
     } catch (error) {
-      console.error("contract deletion error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('contract deletion error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -398,40 +441,40 @@ export const contractController = {
 
       // Check if the contracts array is empty
       if (contracts.length === 0) {
-        return res.status(404).json({ message: "Deleted contracts not found" });
+        return res.status(404).json({ message: 'Deleted contracts not found' });
       }
 
-      res.json({ contracts, type: "contract" }); // Return the array of projects
+      res.json({ contracts, type: 'contract' }); // Return the array of projects
     } catch (error) {
-      console.error("Get deleted project error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Get deleted project error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
   async uploadImage(
     req: Request & { filesInfo?: any[]; user?: { userId: string } },
-    res: Response
+    res: Response,
   ): Promise<any> {
     try {
       const filesInfo: any = req.filesInfo;
 
       if (!filesInfo) {
-        return res.status(400).json({ message: "No file uploaded" });
+        return res.status(400).json({ message: 'No file uploaded' });
       }
 
       let uri = await getSignedDownloadUrl(
         filesInfo[0]?.fileName,
-        filesInfo[0]?.fileType
+        filesInfo[0]?.fileType,
       );
 
       res.json({
-        message: "Contract logo updated successfully",
+        message: 'Contract logo updated successfully',
         file: filesInfo[0],
         uri,
       });
     } catch (error) {
-      console.error("Update contract logo error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('Update contract logo error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -452,9 +495,9 @@ export const contractController = {
 
       // Check if clientSign exists to determine if status should be updated
       if (contract.clientSign) {
-        contract.status = "Completed";
+        contract.status = 'Completed';
       } else {
-        contract.status = "Awaiting Client Signature";
+        contract.status = 'Awaiting Client Signature';
       }
 
       // Save the updated document
@@ -463,16 +506,16 @@ export const contractController = {
       if (!contract) {
         return res
           .status(404)
-          .json({ message: "contract not found or already signed" });
+          .json({ message: 'contract not found or already signed' });
       }
 
       res.json({
-        message: "contract signed successfully",
+        message: 'contract signed successfully',
         contract,
       });
     } catch (error) {
-      console.error("contract deletion error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('contract deletion error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 
@@ -493,9 +536,9 @@ export const contractController = {
 
       // Check if partySign exists to determine if status should be updated
       if (contract.partySign) {
-        contract.status = "Completed";
+        contract.status = 'Completed';
       } else {
-        contract.status = "Awaiting Your Signature";
+        contract.status = 'Awaiting Your Signature';
       }
 
       // Save the updated document
@@ -504,16 +547,16 @@ export const contractController = {
       if (!contract) {
         return res
           .status(404)
-          .json({ message: "contract not found or already signed" });
+          .json({ message: 'contract not found or already signed' });
       }
 
       res.json({
-        message: "contract signed successfully",
+        message: 'contract signed successfully',
         contract,
       });
     } catch (error) {
-      console.error("contract deletion error:", error);
-      res.status(500).json({ message: "Server error", error });
+      console.error('contract deletion error:', error);
+      res.status(500).json({ message: 'Server error', error });
     }
   },
 };

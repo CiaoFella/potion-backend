@@ -23,6 +23,11 @@ const TransactionSchema = new mongoose.Schema(
       required: false,
       default: false,
     },
+    isExcluded: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     counterparty: {
       type: String,
     },
@@ -156,7 +161,9 @@ const actionHandler = async (doc, type = "update") => {
 
   // Only predict category on new transactions
   if (type === "save") {
-    await predictCategory(doc);
+    // TODO: Reimplement as soon as AI is working again
+
+    //await predictCategory(doc);
   }
 };
 

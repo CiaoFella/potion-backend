@@ -175,4 +175,39 @@ router.delete('/items/:plaidItemId', auth, plaidController.deletePlaidItem);
  */
 router.post('/webhook', plaidController.handleWebhook);
 
+
+/**
+ * @swagger
+ * /api/plaid/transactions:
+ *   get:
+ *     summary: Get Plaid transactions
+ *     description: Receives transactions for account from Plaid
+ *     tags: [Plaid]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               account_id:
+ *                 type: string
+ *               start_date:
+ *                 type: string
+ *               end_date:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Transactions processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ */
+router.get('/transactions', plaidController.getPlaidTransactions);
+
+
 export default router; 

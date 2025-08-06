@@ -47,20 +47,20 @@ const TrialEndingEmail: React.FC<TrialEndingProps> = ({
       <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
       <Text style={components.text}>
-        Your {trialDays}-day Potion trial will automatically convert to a paid
-        subscription soon.
+        You've been exploring Potion for {trialDays - daysRemaining} days, and
+        we hope you're loving the platform as much as we love building it.
       </Text>
 
-      <div style={statusBoxes.warning}>
-        <ClockIcon size={16} color="#d97706" />
-        Your subscription will be charged in {daysRemaining}{' '}
+      <div style={statusBoxes.info}>
+        <ClockIcon size={16} color="#2563eb" />
+        Your trial converts to a paid subscription in {daysRemaining}{' '}
         {daysRemaining === 1 ? 'day' : 'days'}
       </div>
 
       <Text style={components.text}>
-        <strong>What happens next:</strong> Your subscription will automatically
-        renew at ${monthlyPrice}/month. You'll keep full access to all features
-        with no interruption.
+        <strong>Here's what to expect:</strong> Your account will seamlessly
+        continue at ${monthlyPrice}/month with all features and data intact. No
+        interruptions, no setup required.
       </Text>
 
       {usageStats &&

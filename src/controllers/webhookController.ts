@@ -215,7 +215,6 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
         `Google-authenticated user checkout completed: ${email}. User can login with Google.`,
       );
     } else {
-      // Regular user - send password setup email
       const token = crypto.randomBytes(32).toString('hex');
       const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
@@ -223,10 +222,17 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
       user.passwordSetupTokenExpiry = expiry;
       await user.save();
 
-      await sendPasswordSetupEmail(email, firstName || 'there', token);
-      console.log(
-        `New user checkout completed and password setup email sent to: ${email}`,
-      );
+      try {
+        await sendPasswordSetupEmail(email, firstName || 'there', token);
+        console.log(
+          `✅ [WEBHOOK] Password setup email sent successfully to: ${email}`,
+        );
+      } catch (emailError) {
+        console.error(
+          `❌ [WEBHOOK] Failed to send password setup email to: ${email}`,
+          emailError,
+        );
+      }
     }
   } catch (error) {
     console.error('Error processing checkout completion:', error);
@@ -300,12 +306,17 @@ const handleExistingUserCheckout = async (session: Stripe.Checkout.Session) => {
 
       await user.save();
 
-      // Send password setup email using React Email
-      await sendPasswordSetupEmail(customerEmail, firstName, token);
-
-      console.log(
-        `New direct checkout user created and password setup email sent to: ${customerEmail}`,
-      );
+      try {
+        await sendPasswordSetupEmail(customerEmail, firstName, token);
+        console.log(
+          `✅ [WEBHOOK-DIRECT] Password setup email sent successfully to: ${customerEmail}`,
+        );
+      } catch (emailError) {
+        console.error(
+          `❌ [WEBHOOK-DIRECT] Failed to send password setup email to: ${customerEmail}`,
+          emailError,
+        );
+      }
     } else {
       // Update existing user's subscription
       user.subscription = {

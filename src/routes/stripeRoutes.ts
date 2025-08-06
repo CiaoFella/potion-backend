@@ -8,11 +8,13 @@ import {
   createSubscriptionCheckout,
   createCustomerPortal,
   createDirectCheckout,
+  getSessionCustomerEmail,
 } from '../controllers/stripeController';
 
 const router = express.Router();
 
 router.post('/checkout/direct', createDirectCheckout);
+router.get('/session/:sessionId', getSessionCustomerEmail);
 
 router.post('/subscription', auth, createUserSubscription);
 router.delete('/subscription', auth, cancelUserSubscription);

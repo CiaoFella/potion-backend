@@ -20,7 +20,15 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       html: options.html,
     });
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error sending email:', {
+      to: options.to,
+      subject: options.subject,
+      error: error,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
     throw new Error(
       `Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
