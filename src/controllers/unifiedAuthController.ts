@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { config } from '../config/config';
 import { User } from '../models/User';
 import { UserRoles, UserRoleType, AccessLevel } from '../models/UserRoles';
@@ -816,19 +817,55 @@ export const setupRolePassword = async (
         user.lastName = lastName || user.lastName;
       }
 
-      // Hash password
-      const bcrypt = await import('bcryptjs');
-      user.password = await bcrypt.hash(password, 12);
-      user.passwordSetupToken = undefined;
-      user.passwordSetupTokenExpiry = undefined;
-      await user.save();
+      // Hash password and update user
+      const hashedPassword = await bcrypt.hash(password, 12);
 
-      // Generate legacy token
-      const jwt = await import('jsonwebtoken');
-      const { config } = await import('../config/config');
-      const authToken = jwt.sign({ userId: user._id }, config.jwtSecret!, {
-        expiresIn: '7d',
+      // Update user with proper typing
+      await User.findByIdAndUpdate(user._id, {
+        password: hashedPassword,
+        isPasswordSet: true,
+        $unset: {
+          passwordSetupToken: 1,
+          passwordSetupTokenExpiry: 1,
+        },
       });
+
+      // Create or update business owner role
+      let businessOwnerRole = await UserRoles.findOne({
+        user: user._id,
+        roleType: UserRoleType.BUSINESS_OWNER,
+        deleted: false,
+      });
+
+      if (!businessOwnerRole) {
+        // Create business owner role
+        businessOwnerRole = new UserRoles({
+          user: user._id,
+          email: user.email,
+          roleType: UserRoleType.BUSINESS_OWNER,
+          accessLevel: AccessLevel.ADMIN,
+          status: 'active',
+          password: hashedPassword,
+          isPasswordSet: true,
+        });
+        await businessOwnerRole.save();
+      } else {
+        // Update existing role with password
+        await UserRoles.findByIdAndUpdate(businessOwnerRole._id, {
+          password: hashedPassword,
+          isPasswordSet: true,
+          status: 'active',
+        });
+        // Refresh the document
+        businessOwnerRole = await UserRoles.findById(businessOwnerRole._id);
+      }
+
+      // Generate unified auth token using the business owner role
+      const authToken = generateUnifiedToken(
+        user._id.toString(),
+        businessOwnerRole!._id.toString(),
+        user.email,
+      );
 
       res.json({
         success: true,
