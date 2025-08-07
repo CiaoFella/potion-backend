@@ -12,11 +12,13 @@ import crmRoutes from './routes/crmRoutes';
 import subcontractorRoutes from './routes/subcontractorRoutes';
 import waitlistRoutes from './routes/waitlistRoutes';
 import transactionRoutes from './routes/transactionRoutes';
+import transactionCategoryRoutes from './routes/transactionCategoryRoutes';
 import timeTrackerRoutes from './routes/timeTrackerRoutes';
 import searchRoute from './routes/searchRoute';
 import stripeRoutes from './routes/stripeRoutes';
 import chatRoute from './routes/chatRoute';
 import accountantRoutes from './routes/accountantRoutes';
+import aiRoutes from './routes/aiRoutes';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
@@ -79,6 +81,8 @@ app.post(
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.post('/api/pay/webhook-parsed', handleStripeWebhook);
 
 // CORS configuration
 app.use(
@@ -195,6 +199,21 @@ app.use(
   transactionRoutes,
 );
 
+// Transaction categorization routes
+app.use(
+  '/api/transaction-category',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  transactionCategoryRoutes,
+);
+
+app.use(
+  '/api/transaction-category-messages',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  transactionCategoryRoutes,
+);
+
 app.use(
   '/api/plaid',
   ...protectedWithSubscription,
@@ -264,6 +283,14 @@ app.use(
   ...protectedWithSubscription,
   requireRole(UserRole.USER, UserRole.ACCOUNTANT),
   chatRoute,
+);
+
+// AI Service integration routes
+app.use(
+  '/api/ai',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  aiRoutes,
 );
 
 app.use(
