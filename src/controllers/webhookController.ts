@@ -35,29 +35,20 @@ export const handleStripeWebhook = async (
       config.stripeWebhookSecret!,
     );
   } catch (err: any) {
-    console.error('❌ Webhook signature verification failed:', err.message);
-    console.log('📝 Request body type:', typeof req.body);
-    console.log('📝 Request body length:', req.body ? req.body.length : 'undefined');
-    console.log('📝 Stripe signature header:', sig ? 'present' : 'missing');
-    
-    // In development or if nginx is proxying, signature verification might fail
-    // Try to parse the body as JSON and process it anyway (less secure but functional)
-    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'DEV') {
-      console.log('⚠️  Development mode: Attempting to process webhook without signature verification');
+    if (process.env.NODE_ENV === 'DEV') {
       try {
-        // If body is already parsed as object, use it directly
         if (typeof req.body === 'object' && req.body.id && req.body.type) {
           event = req.body as Stripe.Event;
-          console.log('✅ Using parsed webhook event:', event.type);
         } else {
-          // Try to parse as JSON string
           const bodyStr = req.body.toString();
           event = JSON.parse(bodyStr) as Stripe.Event;
-          console.log('✅ Parsed webhook event from string:', event.type);
         }
       } catch (parseErr: any) {
-        console.error('❌ Failed to parse webhook body:', parseErr.message);
-        return res.status(400).send(`Webhook Error: Unable to parse webhook body - ${parseErr.message}`);
+        return res
+          .status(400)
+          .send(
+            `Webhook Error: Unable to parse webhook body - ${parseErr.message}`,
+          );
       }
     } else {
       return res.status(400).send(`Webhook Error: ${err.message}`);
