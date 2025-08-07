@@ -71,7 +71,7 @@ const PORT = config.port || 5000;
 
 // Webhook routes MUST come before express.json() to receive raw body
 app.post(
-  '/api/webhooks/stripe',
+  '/api/pay/webhook',
   express.raw({ type: 'application/json' }),
   handleStripeWebhook,
 );
