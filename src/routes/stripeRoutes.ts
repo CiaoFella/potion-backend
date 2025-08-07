@@ -10,8 +10,16 @@ import {
   createDirectCheckout,
   getSessionCustomerEmail,
 } from '../controllers/stripeController';
+import { handleStripeWebhook } from '../controllers/webhookController';
 
 const router = express.Router();
+
+// Webhook route - must handle raw body, so it's defined before other routes
+router.post(
+  '/webhook',
+  express.raw({ type: 'application/json' }),
+  handleStripeWebhook,
+);
 
 router.post('/checkout/direct', createDirectCheckout);
 router.get('/session/:sessionId', getSessionCustomerEmail);

@@ -51,7 +51,6 @@ import {
   accountantLogin,
 } from './controllers/accountantController';
 import { subcontractorController } from './controllers/subcontractorController';
-import { handleStripeWebhook } from './controllers/webhookController';
 
 // Import the new RBAC middleware
 import {
@@ -68,13 +67,6 @@ dotenv.config();
 
 const app = express();
 const PORT = config.port || 5000;
-
-// Webhook routes MUST come before express.json() to receive raw body
-app.post(
-  '/api/webhooks/stripe',
-  express.raw({ type: 'application/json' }),
-  handleStripeWebhook,
-);
 
 // Middleware
 app.use(express.json());

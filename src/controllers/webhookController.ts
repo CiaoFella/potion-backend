@@ -452,13 +452,99 @@ const handleAsyncPaymentFailed = async (session: Stripe.Checkout.Session) => {
 const handleSubscriptionUpdated = async (subscription: Stripe.Subscription) => {
   try {
     const customerId = subscription.customer as string;
-    const user = await User.findOne({
+    let user = await User.findOne({
       'subscription.stripeCustomerId': customerId,
     });
 
     if (!user) {
-      console.error(`User not found for Stripe Customer ID: ${customerId}`);
-      return;
+      try {
+        const customer = await stripe.customers.retrieve(customerId);
+
+        if (customer.deleted) {
+          console.error(`Stripe customer ${customerId} is deleted`);
+          return;
+        }
+
+        // Extract customer information (customer is now guaranteed to be a Customer, not DeletedCustomer)
+        const customerData = customer as Stripe.Customer;
+        const email = customerData.email;
+        const name = customerData.name || '';
+        const nameParts = name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        if (!email) {
+          console.error(`No email found for Stripe Customer ID: ${customerId}`);
+          return;
+        }
+
+        // Check if user exists by email
+        user = await User.findOne({ email });
+
+        if (!user) {
+          // Create new user
+          user = new User({
+            firstName,
+            lastName,
+            email,
+            signupSource: 'subscription_webhook',
+            password: 'TEMP_PASSWORD', // Will be replaced when password is set
+            isPasswordSet: false,
+            authProvider: 'password',
+            subscription: {
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscription.id,
+              stripePriceId: subscription.items.data[0].price.id,
+              status: subscription.status,
+              trialEndsAt: subscription.trial_end
+                ? new Date(subscription.trial_end * 1000)
+                : null,
+              currentPeriodEnd: new Date(
+                subscription.current_period_end * 1000,
+              ),
+              cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
+              canceledAt: subscription.canceled_at
+                ? new Date(subscription.canceled_at * 1000)
+                : null,
+              cancelAt: subscription.cancel_at
+                ? new Date(subscription.cancel_at * 1000)
+                : null,
+            },
+          });
+
+          await user.save();
+
+          // Emit new user event for CRM categories creation
+          myEmitter.emit('new-user', user);
+
+          // Send password setup email
+          const token = crypto.randomBytes(32).toString('hex');
+          const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+
+          user.passwordSetupToken = token;
+          user.passwordSetupTokenExpiry = expiry;
+          await user.save();
+
+          try {
+            await sendPasswordSetupEmail(email, firstName || 'there', token);
+          } catch (emailError) {
+            console.error(
+              `❌ [WEBHOOK] Failed to send password setup email to: ${email}`,
+              emailError,
+            );
+          }
+          return;
+        } else {
+          user.subscription = user.subscription || {};
+          user.subscription.stripeCustomerId = customerId;
+        }
+      } catch (stripeError) {
+        console.error(
+          `Failed to retrieve Stripe customer ${customerId}:`,
+          stripeError,
+        );
+        return;
+      }
     }
 
     // Check if subscription was just scheduled for cancellation
