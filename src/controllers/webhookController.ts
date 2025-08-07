@@ -35,24 +35,20 @@ export const handleStripeWebhook = async (
       config.stripeWebhookSecret!,
     );
   } catch (err: any) {
-    if (process.env.NODE_ENV === 'DEV') {
-      try {
-        if (typeof req.body === 'object' && req.body.id && req.body.type) {
-          event = req.body as Stripe.Event;
-        } else {
-          const bodyStr = req.body.toString();
-          event = JSON.parse(bodyStr) as Stripe.Event;
-        }
-      } catch (parseErr: any) {
-        return res
-          .status(400)
-          .send(
-            `Webhook Error: Unable to parse webhook body - ${parseErr.message}`,
-          );
-      }
-    } else {
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+    // try {
+    //   if (typeof req.body === 'object' && req.body.id && req.body.type) {
+    //     event = req.body as Stripe.Event;
+    //   } else {
+    //     const bodyStr = req.body.toString();
+    //     event = JSON.parse(bodyStr) as Stripe.Event;
+    //   }
+    // } catch (parseErr: any) {
+    //   return res
+    //     .status(400)
+    //     .send(
+    //       `Webhook Error: Unable to parse webhook body - ${parseErr.message}`,
+    //     );
+    // }
   }
 
   try {
