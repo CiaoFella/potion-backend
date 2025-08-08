@@ -10,7 +10,6 @@ import {
   createDirectCheckout,
   getSessionCustomerEmail,
 } from '../controllers/stripeController';
-
 const router = express.Router();
 
 router.post('/checkout/direct', createDirectCheckout);

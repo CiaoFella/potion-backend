@@ -182,6 +182,17 @@ export const plaidController = {
         (account: any) => account.accountId === plaidItemId
       );
 
+      // Remove the Plaid item if we delete the last account
+      if (plaidItem.accounts.length === 1) {
+        await PlaidService.removeItem(plaidItem.accessToken);
+        await PlaidItem.deleteOne({ _id: plaidItem._id });
+      } else {
+        // update the plaid item and remove the account from the accounts array
+        const updatedItem = await PlaidItem.findByIdAndUpdate(plaidItem._id, {
+          $pull: { accounts: { accountId: plaidItemId } },
+        });
+      }
+
       // delete all transactions associated with the account
       await Transaction.deleteMany({ bankAccount: account.accountId });
 
@@ -193,7 +204,6 @@ export const plaidController = {
       } else {
         await PlaidItem.findByIdAndDelete(plaidItem._id)
       }
-
 
       res.json({ message: "Plaid item deleted successfully" });
     } catch (error: any) {
