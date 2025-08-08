@@ -6,6 +6,7 @@ import { Transaction } from "../models/Transaction";
 import { Types } from "mongoose";
 import { CountryCode, LinkTokenCreateRequest, Products } from "plaid";
 import { BalanceCalculationService } from "./balanceCalculationService";
+import { use } from "react";
 
 
 enum PlaidWebhookCode {
@@ -16,7 +17,7 @@ enum PlaidWebhookCode {
   "syncUpdatesAvailable" = "SYNC_UPDATES_AVAILABLE",
 }
 export class PlaidService {
-  static async createLinkToken(userId: string) {
+  static async createLinkToken(userId: string, existingToken?: string) {
     try {
       const configs: LinkTokenCreateRequest = {
         user: {
@@ -30,6 +31,10 @@ export class PlaidService {
         transactions: {
           days_requested: 730,
         },
+        update: {
+            account_selection_enabled: !!existingToken,
+        },
+        access_token: existingToken ? existingToken : undefined,
       };
 
       const response = await plaidClient.linkTokenCreate(configs);
@@ -91,6 +96,8 @@ export class PlaidService {
             type: account.type,
             subtype: account.subtype,
             mask: account.mask,
+            institutionId: itemResponse.data.item.institution_id,
+            institutionName: institutionResponse.data.institution.name,
           })),
         },
         { upsert: true, new: true }

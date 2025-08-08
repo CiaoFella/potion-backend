@@ -1,4 +1,6 @@
-import { Request, Response } from "express";
+import { tests } from './../../node_modules/tsconfig-paths/src/__tests__/data/match-path-data';
+import { accountId } from './../../node_modules/aws-sdk/clients/health.d';
+import e, { Request, Response } from "express";
 import { PlaidService } from "../services/plaidService";
 import { PlaidItem } from "../models/PlaidItem";
 import { Transaction } from "../models/Transaction";
@@ -8,12 +10,26 @@ import { plaidClient } from "../config/plaid";
 export const plaidController = {
   async createLinkToken(req: Request, res: Response): Promise<void> {
     try {
+      const { itemId } = req.body;
       // Use X-User-ID header if available
       const userId =
         req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[createLinkToken] Using userId:", userId);
 
-      const linkToken = await PlaidService.createLinkToken(userId);
+      const plaidItem = await PlaidItem.find({ userId: userId });
+      let existingToken = '';
+
+
+      plaidItem.find(async (item) => {
+        item.accounts.find(accounts => {
+          if (accounts?.accountId === itemId) {
+            existingToken = item.accessToken;
+          }
+        });
+      });
+
+
+      const linkToken = await PlaidService.createLinkToken(userId, existingToken);
+
       res.json(linkToken);
     } catch (error: any) {
       console.error("[createLinkToken] Error:", error.message);
@@ -171,7 +187,7 @@ export const plaidController = {
         await PlaidService.removeItem(plaidItem.accessToken);
         await PlaidItem.deleteOne({ _id: plaidItem._id });
       } else {
-          // update the plaid item and remove the account from the accounts array
+        // update the plaid item and remove the account from the accounts array
         const updatedItem = await PlaidItem.findByIdAndUpdate(plaidItem._id, {
           $pull: { accounts: { accountId: plaidItemId } },
         });
@@ -179,6 +195,15 @@ export const plaidController = {
 
       // delete all transactions associated with the account
       await Transaction.deleteMany({ bankAccount: account.accountId });
+
+      // remove the account from the accounts array
+      if (plaidItem.accounts.length > 1) {
+        await PlaidItem.findByIdAndUpdate(plaidItem._id, {
+          $pull: { accounts: { accountId: plaidItemId } },
+        });
+      } else {
+        await PlaidItem.findByIdAndDelete(plaidItem._id)
+      }
 
       res.json({ message: "Plaid item deleted successfully" });
     } catch (error: any) {
