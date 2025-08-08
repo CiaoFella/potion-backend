@@ -1,11 +1,11 @@
-import { predictCategory, Transaction } from "../models/Transaction";
-import csv from "csv-parser";
-import fs from "fs";
-import mongoose from "mongoose";
+import { predictCategory, Transaction } from '../models/Transaction';
+import csv from 'csv-parser';
+import fs from 'fs';
+import mongoose from 'mongoose';
 
 const parseAmount = (amount: string) => {
-  if (typeof amount === "string") {
-    return parseFloat(amount.replace(/[^0-9.-]+/g, ""));
+  if (typeof amount === 'string') {
+    return parseFloat(amount.replace(/[^0-9.-]+/g, ''));
   }
   return amount;
 };
@@ -15,8 +15,8 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[createTransaction] Using userId:", userId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[createTransaction] Using userId:', userId);
 
       const transaction = new Transaction({
         ...req.body,
@@ -33,27 +33,27 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[uploadCSV] Using userId:", userId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[uploadCSV] Using userId:', userId);
 
       const results: any = [];
       const errors: any = [];
 
       fs.createReadStream(req.file.path)
         .pipe(csv())
-        .on("data", (data) => {
+        .on('data', (data) => {
           try {
             if (!data.Date && !data.Amount) return;
 
-            let date = data.Date.split("/");
+            let date = data.Date.split('/');
 
             const transaction = {
-              date: new Date(date[2] + "-" + date[0] + "-" + date[1]),
-              type: data["Transaction Type"] || "Expense",
+              date: new Date(date[2] + '-' + date[0] + '-' + date[1]),
+              type: data['Transaction Type'] || 'Expense',
               amount: parseAmount(data.Amount),
-              description: data["Memo/Description"],
+              description: data['Memo/Description'],
               bankAccount: data.Account,
-              counterparty: data.Name ?? "Unknown",
+              counterparty: data.Name ?? 'Unknown',
               category: data.Category || data.Split,
               createdBy: userId,
             };
@@ -66,7 +66,7 @@ export const transactionController = {
             });
           }
         })
-        .on("end", async () => {
+        .on('end', async () => {
           try {
             if (results.length > 0) {
               await Transaction.insertMany(results);
@@ -94,8 +94,8 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[updateTransaction] Using userId:", userId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[updateTransaction] Using userId:', userId);
 
       const updateData = { ...req.body };
       if (updateData.amount) {
@@ -110,15 +110,15 @@ export const transactionController = {
             updateData.isUserConfirmed || updateData.category ? true : false,
           isExcluded: updateData.isExcluded ?? false,
         },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       );
 
       if (!transaction) {
-        return res.status(404).json({ error: "Transaction not found" });
+        return res.status(404).json({ error: 'Transaction not found' });
       }
 
       if (updateData.category || updateData?.description) {
-        await predictCategory(transaction);
+        predictCategory(transaction);
       }
 
       res.json(transaction);
@@ -131,17 +131,17 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[deleteTransaction] Using userId:", userId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[deleteTransaction] Using userId:', userId);
 
       const transaction = await Transaction.findOneAndDelete({
         _id: req.params.id,
         createdBy: userId,
       });
       if (!transaction) {
-        return res.status(404).json({ error: "Transaction not found" });
+        return res.status(404).json({ error: 'Transaction not found' });
       }
-      res.json({ message: "Transaction deleted successfully" });
+      res.json({ message: 'Transaction deleted successfully' });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -150,13 +150,13 @@ export const transactionController = {
   async deleteTransactionsByBankAccount(req: any, res: any) {
     const { bankAccountId } = req.params;
     if (!bankAccountId)
-      return res.status(400).json({ error: "Bank account ID is required" });
+      return res.status(400).json({ error: 'Bank account ID is required' });
 
     try {
       // Use X-User-ID header if available
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[deleteTransactionsByBankAccount] Using userId:", userId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[deleteTransactionsByBankAccount] Using userId:', userId);
 
       // Delete all transactions associated with the bank account for this user
       const result = await Transaction.deleteMany({
@@ -169,7 +169,7 @@ export const transactionController = {
         deletedCount: result.deletedCount,
       });
     } catch (error: any) {
-      console.error("[deleteTransactionsByBankAccount] Error:", error.message);
+      console.error('[deleteTransactionsByBankAccount] Error:', error.message);
       res.status(400).json({ error: error.message });
     }
   },
@@ -178,20 +178,20 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const currentUserId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[getOrphanedTransactions] Using userId:", currentUserId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[getOrphanedTransactions] Using userId:', currentUserId);
 
       // Get all PlaidItems for this user to find valid bank account IDs
       const plaidItems = await mongoose
-        .model("PlaidItem")
+        .model('PlaidItem')
         .find({ userId: currentUserId });
       const validBankAccountIds = plaidItems.flatMap((item) =>
-        item.accounts.map((account) => account.accountId)
+        item.accounts.map((account) => account.accountId),
       );
 
       console.log(
-        "[getOrphanedTransactions] Valid bank account IDs:",
-        validBankAccountIds
+        '[getOrphanedTransactions] Valid bank account IDs:',
+        validBankAccountIds,
       );
 
       // Find transactions that don't have valid bank accounts
@@ -202,8 +202,8 @@ export const transactionController = {
           { bankAccount: { $exists: false } },
         ],
       })
-        .populate("invoice", "invoiceNumber total status")
-        .populate("project", "name")
+        .populate('invoice', 'invoiceNumber total status')
+        .populate('project', 'name')
         .sort({ date: -1 });
 
       res.json({
@@ -213,7 +213,7 @@ export const transactionController = {
         validBankAccountIds: validBankAccountIds,
       });
     } catch (error: any) {
-      console.error("[getOrphanedTransactions] Error:", error.message);
+      console.error('[getOrphanedTransactions] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   },
@@ -222,20 +222,20 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const currentUserId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[deleteOrphanedTransactions] Using userId:", currentUserId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[deleteOrphanedTransactions] Using userId:', currentUserId);
 
       // Get all PlaidItems for this user to find valid bank account IDs
       const plaidItems = await mongoose
-        .model("PlaidItem")
+        .model('PlaidItem')
         .find({ userId: currentUserId });
       const validBankAccountIds = plaidItems.flatMap((item) =>
-        item.accounts.map((account) => account.accountId)
+        item.accounts.map((account) => account.accountId),
       );
 
       console.log(
-        "[deleteOrphanedTransactions] Valid bank account IDs:",
-        validBankAccountIds
+        '[deleteOrphanedTransactions] Valid bank account IDs:',
+        validBankAccountIds,
       );
 
       // Delete transactions that don't have valid bank accounts
@@ -253,7 +253,7 @@ export const transactionController = {
         validBankAccountIds: validBankAccountIds,
       });
     } catch (error: any) {
-      console.error("[deleteOrphanedTransactions] Error:", error.message);
+      console.error('[deleteOrphanedTransactions] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   },
@@ -274,12 +274,12 @@ export const transactionController = {
 
       // Directly use the X-User-ID header value for createdBy
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
 
-      console.log("[Transactions] X-User-ID header:", req.header("X-User-ID"));
-      console.log("[Transactions] Query with userId:", userId);
-      console.log("[Transactions] User object:", req.user);
-      console.log("[Transactions] Is accountant:", req.isAccountant);
+      console.log('[Transactions] X-User-ID header:', req.header('X-User-ID'));
+      console.log('[Transactions] Query with userId:', userId);
+      console.log('[Transactions] User object:', req.user);
+      console.log('[Transactions] Is accountant:', req.isAccountant);
 
       const query: any = { createdBy: userId };
 
@@ -294,31 +294,31 @@ export const transactionController = {
         query.amount = { ...query.amount, $lte: parseFloat(maxAmount) };
       if (search) {
         query.$or = [
-          { description: { $regex: search, $options: "i" } },
-          { counterparty: { $regex: search, $options: "i" } },
+          { description: { $regex: search, $options: 'i' } },
+          { counterparty: { $regex: search, $options: 'i' } },
         ];
       }
       if (client) {
         query.project = {
           $in: await mongoose
-            .model("Project")
+            .model('Project')
             .find({ client: client })
-            .distinct("_id"),
+            .distinct('_id'),
         };
       }
 
-      console.log("[Transactions] Final query:", JSON.stringify(query));
+      console.log('[Transactions] Final query:', JSON.stringify(query));
 
       const transactions = await Transaction.find(query)
-        .populate("invoice", "invoiceNumber total status")
-        .populate("project", "name")
+        .populate('invoice', 'invoiceNumber total status')
+        .populate('project', 'name')
         .sort({ date: -1 })
         .limit(req.query.limit ? parseInt(req.query.limit) : 100);
 
-      console.log("[Transactions] Found:", transactions.length);
+      console.log('[Transactions] Found:', transactions.length);
       res.json(transactions);
     } catch (error: any) {
-      console.error("[Transactions] Error:", error.message);
+      console.error('[Transactions] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   },
@@ -327,8 +327,8 @@ export const transactionController = {
     try {
       // Use X-User-ID header if available
       const userId =
-        req.header("X-User-ID") || req.user?.userId || req.user?.id;
-      console.log("[getTransactionById] Using userId:", userId);
+        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      console.log('[getTransactionById] Using userId:', userId);
 
       const transaction = await Transaction.findOne({
         _id: req.params.id,
@@ -336,11 +336,11 @@ export const transactionController = {
       });
 
       if (!transaction) {
-        return res.status(404).json({ error: "Transaction not found" });
+        return res.status(404).json({ error: 'Transaction not found' });
       }
       res.json(transaction);
     } catch (error: any) {
-      console.error("[getTransactionById] Error:", error.message);
+      console.error('[getTransactionById] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   },

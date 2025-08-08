@@ -1,13 +1,13 @@
-import mongoose from "mongoose";
-import { myEmitter } from "../services/eventEmitter";
-import fetch from "node-fetch";
-import { getToken } from "../cron/getCRMAction";
+import mongoose from 'mongoose';
+import { myEmitter } from '../services/eventEmitter';
+import fetch from 'node-fetch';
+import { getToken } from '../cron/getCRMAction';
 
 const TransactionSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["Expense", "Income"],
+      enum: ['Expense', 'Income'],
       required: true,
     },
     bankAccount: {
@@ -33,7 +33,7 @@ const TransactionSchema = new mongoose.Schema(
     },
     project: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
+      ref: 'Project',
     },
     amount: {
       type: Number,
@@ -55,11 +55,11 @@ const TransactionSchema = new mongoose.Schema(
     },
     invoice: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Invoice",
+      ref: 'Invoice',
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
       required: true,
     },
     cardLastFour: {
@@ -67,7 +67,7 @@ const TransactionSchema = new mongoose.Schema(
       required: false,
     },
     account: {
-      type: String
+      type: String,
     },
     plaidTransactionId: {
       type: String,
@@ -76,12 +76,12 @@ const TransactionSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ["CategoryAction", "TransactionAction", "InvoiceAction"],
+      enum: ['CategoryAction', 'TransactionAction', 'InvoiceAction'],
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 TransactionSchema.index({ createdBy: 1, date: -1 });
@@ -89,86 +89,291 @@ TransactionSchema.index({ plaidTransactionId: 1 });
 
 export const predictCategory = async (doc) => {
   try {
-    // Check if the transaction was created within the last minute
+    // Check if the transaction was created within the last 5 minutes
+    // This accounts for bulk imports and processing delays
     const creationTime = doc.createdAt.getTime();
     const currentTime = Date.now();
-    const isNew = currentTime - creationTime < 60000; // 60000ms = 1 minute
+    const isNew = currentTime - creationTime < 300000; // 300000ms = 5 minutes
 
     if (!isNew) {
+      console.log('⏰ Skipping categorization for old transaction:', {
+        transactionId: doc._id.toString(),
+        createdAt: doc.createdAt,
+        ageInMinutes: Math.round((currentTime - creationTime) / 60000),
+      });
       return;
     }
 
     const token = await getToken(doc.createdBy.toString());
 
     if (!token) {
-      console.log("No token found");
+      console.log('No token found for transaction categorization');
       return;
     }
 
-    let url = `https://chat.go-potion.com/transaction-category/${doc._id.toString()}?type=category`;
+    // Use AI service for transaction categorization with Perplexity
+    const aiServiceUrl =
+      process.env.AI_SERVICE_URL ||
+      (process.env.NODE_ENV === 'production'
+        ? 'https://ai.potionapp.com/api'
+        : 'http://localhost:5001/api');
+
+    const url = `${aiServiceUrl}/transaction/categorize/${doc._id.toString()}?type=category`;
+
+    const requestBody = {
+      amount: doc.amount,
+      description: doc.description || '',
+      merchant: doc.counterparty || '',
+      date: doc.date.toISOString(),
+      transactionType: doc.type || 'Expense',
+    };
+
+    console.log('🤖 Categorizing transaction with Perplexity AI:', {
+      transactionId: doc._id.toString(),
+      url,
+      merchant: requestBody.merchant,
+      amount: requestBody.amount,
+    });
 
     const response = await fetch(url, {
-      method: "POST",
-      body: JSON.stringify({
-        message: null,
-      }),
+      method: 'POST',
+      body: JSON.stringify(requestBody),
       headers: {
-        "Content-Type": "application/json",
-        accept: "application/json",
+        'Content-Type': 'application/json',
+        accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
     });
 
-    console.log(">>", url);
-    const prediction = await response.json();
-    console.log(">>", prediction);
-    console.log(">>", doc._id.toString());
-    console.log(">>", token);
+    if (!response.ok) {
+      throw new Error(`AI service responded with status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('🎯 Perplexity categorization result:', {
+      transactionId: doc._id.toString(),
+      success: result.success,
+      primaryCategory: result.data?.primaryCategory,
+      confidence: result.data?.confidence,
+    });
+
+    if (!result.success || !result.data) {
+      throw new Error('Invalid response from AI service');
+    }
+
+    const prediction = result.data;
 
     // Find the category with highest confidence
-    const bestCategory = prediction?.categories?.reduce((prev, current) =>
-      prev.confidence > current.confidence ? prev : current
+    const bestCategory = prediction.categories?.reduce((prev, current) =>
+      prev.confidence > current.confidence ? prev : current,
     );
 
-    // Update category if confidence is high enough
-    if (bestCategory && bestCategory?.confidence >= 0.7) {
+    // Update category if confidence is high enough (lowered threshold for Perplexity)
+    if (bestCategory && bestCategory.confidence >= 0.6) {
       await Transaction.findByIdAndUpdate(doc._id.toString(), {
         category: bestCategory.label,
         aiDescription: prediction.description,
       });
-    } else {
-      await Transaction.findByIdAndUpdate(doc._id.toString(), {
-        action: "CategoryAction",
+
+      console.log('✅ Category predicted and saved:', {
+        transactionId: doc._id.toString(),
+        category: bestCategory.label,
+        confidence: bestCategory.confidence,
+        previousCategory: doc.category,
       });
+    } else {
+      // Clear AI Processing state and mark for manual review
+      await Transaction.findByIdAndUpdate(doc._id.toString(), {
+        category: null, // Clear the "AI Processing..." state
+        aiDescription: null,
+        action: 'CategoryAction',
+      });
+
+      console.log(
+        '⚠️ Low confidence categorization, cleared processing state and marked for manual review:',
+        {
+          transactionId: doc._id.toString(),
+          bestCategory: bestCategory?.label,
+          confidence: bestCategory?.confidence,
+          previousCategory: doc.category,
+        },
+      );
     }
-    console.log(
-      "Category predicted:",
-      bestCategory ? bestCategory.label : "No prediction"
-    );
   } catch (error) {
-    console.error("Error predicting category:", error);
+    console.error('❌ Error predicting category with Perplexity:', {
+      transactionId: doc._id?.toString(),
+      error: error.message,
+    });
+
+    // Clear AI Processing state and mark transaction for manual categorization on error
+    try {
+      await Transaction.findByIdAndUpdate(doc._id.toString(), {
+        category: null, // Clear the "AI Processing..." state
+        aiDescription: null,
+        action: 'CategoryAction',
+      });
+
+      console.log('🔧 Cleared AI processing state due to error:', {
+        transactionId: doc._id?.toString(),
+        previousCategory: doc.category,
+      });
+    } catch (updateError) {
+      console.error(
+        'Failed to clear processing state and mark transaction for manual categorization:',
+        updateError,
+      );
+    }
   }
 };
 
-const actionHandler = async (doc, type = "update") => {
-  // Emit database change event
-  myEmitter.emit("databaseChange", {
+const actionHandler = async (doc, type = 'update') => {
+  // For new transactions, set initial AI processing state
+  if (type === 'save' && !doc.category) {
+    try {
+      // Set initial AI processing state
+      await Transaction.findByIdAndUpdate(doc._id, {
+        category: 'AI Processing...',
+        aiDescription:
+          'AI is analyzing this transaction to suggest the best category.',
+      });
+
+      console.log(
+        '🤖 Set AI Processing state for transaction:',
+        doc._id.toString(),
+      );
+    } catch (error) {
+      console.error('Failed to set AI processing state:', error);
+    }
+  }
+
+  // Emit database change event for UI responsiveness
+  myEmitter.emit('databaseChange', {
     eventType: type,
-    collectionName: "transactions",
+    collectionName: 'transactions',
     documentId: doc._id,
     userId: doc.createdBy,
   });
 
-  // Only predict category on new transactions
-  if (type === "save") {
-    // TODO: Reimplement as soon as AI is working again
+  // For new transactions, predict category asynchronously
+  if (type === 'save') {
+    // Run categorization in background to avoid blocking the response
+    setImmediate(async () => {
+      try {
+        await predictCategory(doc);
 
-    //await predictCategory(doc);
+        // Emit another update after categorization completes
+        setTimeout(() => {
+          myEmitter.emit('databaseChange', {
+            eventType: 'update',
+            collectionName: 'transactions',
+            documentId: doc._id,
+            userId: doc.createdBy,
+          });
+        }, 1000); // Reduced to 1 second for faster feedback
+      } catch (error) {
+        console.error('Background categorization failed:', error);
+      }
+    });
   }
 };
 
-TransactionSchema.post("save", (doc) => actionHandler(doc, "save"));
-TransactionSchema.post("updateOne", actionHandler);
-TransactionSchema.post("findOneAndUpdate", actionHandler);
+TransactionSchema.post('save', (doc) => actionHandler(doc, 'save'));
+TransactionSchema.post('updateOne', actionHandler);
+TransactionSchema.post('findOneAndUpdate', actionHandler);
 
-export const Transaction = mongoose.model("Transaction", TransactionSchema);
+// Ensure categorization runs for bulk inserts as well
+TransactionSchema.post('insertMany', async function (docs: any[]) {
+  try {
+    if (!Array.isArray(docs)) return;
+
+    // Filter transactions that need AI processing (no existing category)
+    const transactionsNeedingAI = docs.filter((d) => !d.category);
+
+    // Set initial AI processing state for transactions that need it
+    if (transactionsNeedingAI.length > 0) {
+      try {
+        await Promise.allSettled(
+          transactionsNeedingAI.map(async (d) => {
+            try {
+              await Transaction.findByIdAndUpdate(d._id, {
+                category: 'AI Processing...',
+                aiDescription:
+                  'AI is analyzing this transaction to suggest the best category.',
+              });
+              console.log(
+                '🤖 Set AI Processing state for bulk transaction:',
+                d._id.toString(),
+              );
+            } catch (error) {
+              console.error(
+                'Failed to set AI processing state for bulk transaction:',
+                error,
+              );
+            }
+          }),
+        );
+      } catch (error) {
+        console.error('Failed to set bulk AI processing states:', error);
+      }
+    }
+
+    // Emit immediate WebSocket events so UI updates quickly with processing state
+    for (const d of docs) {
+      try {
+        myEmitter.emit('databaseChange', {
+          eventType: 'save',
+          collectionName: 'transactions',
+          documentId: d._id,
+          userId: d.createdBy,
+        });
+      } catch (e) {
+        console.error('WebSocket emit failed for doc', d?._id?.toString(), e);
+      }
+    }
+
+    // Process categorization asynchronously in background for transactions that need it
+    if (transactionsNeedingAI.length > 0) {
+      setImmediate(async () => {
+        const categorizedCount = await Promise.allSettled(
+          transactionsNeedingAI.map(async (d) => {
+            try {
+              await predictCategory(d);
+              return { success: true, id: d._id };
+            } catch (e) {
+              console.error(
+                'predictCategory failed for inserted doc',
+                d?._id?.toString(),
+                e,
+              );
+              return { success: false, id: d._id, error: e };
+            }
+          }),
+        );
+
+        // Emit another update after categorizations complete to refresh UI with actual categories
+        setTimeout(() => {
+          for (const d of transactionsNeedingAI) {
+            try {
+              myEmitter.emit('databaseChange', {
+                eventType: 'update',
+                collectionName: 'transactions',
+                documentId: d._id,
+                userId: d.createdBy,
+              });
+            } catch (e) {
+              console.error(
+                'Second WebSocket emit failed for doc',
+                d?._id?.toString(),
+                e,
+              );
+            }
+          }
+        }, 3000); // Wait 3 seconds for categorizations to complete
+      });
+    }
+  } catch (err) {
+    console.error('insertMany post-hook error', err);
+  }
+});
+
+export const Transaction = mongoose.model('Transaction', TransactionSchema);

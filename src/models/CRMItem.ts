@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
-import { myEmitter } from "../services/eventEmitter";
-import { Transaction } from "./Transaction";
-import { getToken } from "../cron/getCRMAction";
+import mongoose from 'mongoose';
+import { myEmitter } from '../services/eventEmitter';
+import { Transaction } from './Transaction';
+import { getToken } from '../cron/getCRMAction';
 const crmItemSchema = new mongoose.Schema(
   {
     name: {
@@ -15,7 +15,7 @@ const crmItemSchema = new mongoose.Schema(
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "CRMCategory",
+      ref: 'CRMCategory',
     },
     description: {
       type: String,
@@ -23,12 +23,11 @@ const crmItemSchema = new mongoose.Schema(
     lastContact: Date,
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
       required: true,
     },
     action: {
       type: String,
-
     },
     actionStatus: {
       type: Boolean,
@@ -36,44 +35,49 @@ const crmItemSchema = new mongoose.Schema(
     },
     deleted: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const predictAction = async (doc) => {
   try {
     const token = await getToken(doc.createdBy.toString());
 
-    const response = await fetch(`https://chat.go-potion.com/quick-actions/${doc._id}`, {
-      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${token}` }
+    // Use AI Service URL for CRM actions
+    const aiServiceUrl =
+      process.env.CHAT_SERVICE_URL ||
+      (process.env.NODE_ENV === 'production'
+        ? 'https://ai.potionapp.com/api'
+        : 'http://localhost:5001/api');
+
+    const response = await fetch(`${aiServiceUrl}/quick-actions/${doc._id}`, {
+      headers: { accept: 'application/json', Authorization: `Bearer ${token}` },
     });
 
     const data = await response.json();
 
     // Update CRM item with the new action
     await CRMItem.findByIdAndUpdate(doc._id, {
-      action: data[0] // Assuming the API returns an object with an action field
+      action: data[0], // Assuming the API returns an object with an action field
     });
   } catch (error) {
     console.error('Error predicting action:', error);
   }
 };
 
-const actionHandler = async (doc, type = "update") => {
+const actionHandler = async (doc, type = 'update') => {
   myEmitter.emit('databaseChange', {
     eventType: type,
     collectionName: 'crm',
     documentId: doc._id,
-    userId: doc.createdBy
+    userId: doc.createdBy,
   });
 
-  if (type === "save") {
+  if (type === 'save') {
     await predictAction(doc);
   }
-}
-crmItemSchema.post("save", (doc) => actionHandler(doc, "save"));
-crmItemSchema.post("updateOne", actionHandler);
-crmItemSchema.post("findOneAndUpdate", actionHandler);
+};
+crmItemSchema.post('save', (doc) => actionHandler(doc, 'save'));
+crmItemSchema.post('updateOne', actionHandler);
+crmItemSchema.post('findOneAndUpdate', actionHandler);
 
-
-
-export const CRMItem = mongoose.model("CRMItem", crmItemSchema);
+export const CRMItem = mongoose.model('CRMItem', crmItemSchema);
