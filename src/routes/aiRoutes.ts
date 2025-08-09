@@ -11,17 +11,19 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
 const checkAIServiceHealth = async () => {
   try {
     // Test the actual chat endpoint with a minimal request
-    const response = await axios.post(`${AI_SERVICE_URL}/chat`, 
-      { message: "health check" }, 
-      { 
+    const response = await axios.post(
+      `${AI_SERVICE_URL}/chat`,
+      { message: 'health check' },
+      {
         timeout: 5000,
         headers: { 'Content-Type': 'application/json' },
-        validateStatus: (status) => status < 500 // Accept 4xx but not 5xx
-      }
+        validateStatus: (status) => status < 500, // Accept 4xx but not 5xx
+      },
     );
-    
+
     // If we get anything other than "Endpoint not found", the route exists
-    const isEndpointNotFound = response.data?.error?.code === 'ENDPOINT_NOT_FOUND';
+    const isEndpointNotFound =
+      response.data?.error?.code === 'ENDPOINT_NOT_FOUND';
     return !isEndpointNotFound;
   } catch (error: any) {
     console.warn('AI service chat endpoint check failed:', error.message);
@@ -76,10 +78,13 @@ const proxyToAIService = (path: string) => {
 // Chat completion endpoint with fallback
 router.post('/chat', auth, async (req: any, res: any) => {
   try {
+    console.log('🔍 Checking AI service health...');
     // Check if AI service is healthy
     const isHealthy = await checkAIServiceHealth();
-
+    console.log('🔍 AI service health check result:', isHealthy);
+    
     if (!isHealthy) {
+      console.log('🚨 AI service unhealthy, returning maintenance message');
       return res.status(503).json({
         success: false,
         error: {
@@ -90,6 +95,7 @@ router.post('/chat', auth, async (req: any, res: any) => {
       });
     }
 
+    console.log('✅ AI service healthy, proxying request');
     // If healthy, try the proxy
     await proxyToAIService('/api/chat')(req, res);
   } catch (error) {
