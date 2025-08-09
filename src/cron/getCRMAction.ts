@@ -5,7 +5,7 @@ import { generateTokens } from '../controllers/authController';
 const API_URL =
   process.env.CHAT_SERVICE_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'http://ai.potionapp.com/api/quick-actions/'
+    ? 'https://ai.potionapp.com/api/quick-actions/'
     : 'http://localhost:5001/api/quick-actions/');
 
 export async function getToken(userId) {

@@ -46,7 +46,7 @@ export const predictAction = async (doc) => {
     const aiServiceUrl =
       process.env.CHAT_SERVICE_URL ||
       (process.env.NODE_ENV === 'production'
-        ? 'http://ai.potionapp.com/api'
+        ? 'https://ai.potionapp.com/api'
         : 'http://localhost:5001/api');
 
     const response = await fetch(`${aiServiceUrl}/quick-actions/${doc._id}`, {
