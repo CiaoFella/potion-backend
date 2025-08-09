@@ -7,54 +7,16 @@ const router = express.Router();
 // AI Service configuration
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
 
-// Check if AI service has the required chat endpoints
-const checkAIServiceHealth = async () => {
-  try {
-    console.log('🔍 Testing AI service URL:', `${AI_SERVICE_URL}/chat`);
-    // Test the actual chat endpoint with a minimal request (no auth needed for health check)
-    const response = await axios.post(
-      `${AI_SERVICE_URL}/chat`,
-      { message: 'health check' },
-      {
-        timeout: 5000,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer dummy', // Just to test if endpoint exists
-        },
-        validateStatus: (status) => status < 500, // Accept 4xx but not 5xx
-      },
-    );
-
-    console.log('🔍 AI service response status:', response.status);
-    console.log('🔍 AI service response data:', JSON.stringify(response.data));
-
-    // If we get anything other than "Endpoint not found", the route exists
-    const isEndpointNotFound =
-      response.data?.error?.code === 'ENDPOINT_NOT_FOUND';
-    console.log('🔍 Is endpoint not found?', isEndpointNotFound);
-
-    return !isEndpointNotFound;
-  } catch (error: any) {
-    console.warn('AI service chat endpoint check failed:', error.message);
-    return false;
-  }
-};
-
 /**
  * Proxy middleware to forward requests to AI service
  */
 const proxyToAIService = (path: string) => {
   return async (req: any, res: any) => {
     try {
-      const fullUrl = `${AI_SERVICE_URL}${path}`;
-      console.log('🔗 Proxying to:', fullUrl);
-      console.log('🔗 Request body:', JSON.stringify(req.body));
-      console.log('🔗 Auth header:', req.headers.authorization?.substring(0, 20) + '...');
-      
       // Forward the request to AI service with JWT token
       const response = await axios({
         method: req.method,
-        url: fullUrl,
+        url: `${AI_SERVICE_URL}${path}`,
         data: req.body,
         headers: {
           Authorization: req.headers.authorization,
@@ -63,15 +25,11 @@ const proxyToAIService = (path: string) => {
         timeout: 60000, // 60 seconds for AI processing
       });
 
-      console.log('🔗 AI service responded with status:', response.status);
-      console.log('🔗 AI service response:', JSON.stringify(response.data).substring(0, 200) + '...');
-
       // Forward the response back to client
       res.status(response.status).json(response.data);
     } catch (error: any) {
       console.error('AI service proxy error:', {
         path,
-        fullUrl: `${AI_SERVICE_URL}${path}`,
         error: error.response?.data || error.message,
         status: error.response?.status || 500,
         userId: req.user?.id,
@@ -93,7 +51,7 @@ const proxyToAIService = (path: string) => {
   };
 };
 
-// Chat completion endpoint (routes exist, proxy should work)
+// Chat completion endpoint
 router.post('/chat', auth, proxyToAIService('/api/chat'));
 
 // Document generation endpoint
