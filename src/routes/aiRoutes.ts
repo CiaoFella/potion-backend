@@ -10,6 +10,7 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
 // Check if AI service has the required chat endpoints
 const checkAIServiceHealth = async () => {
   try {
+    console.log('🔍 Testing AI service URL:', `${AI_SERVICE_URL}/chat`);
     // Test the actual chat endpoint with a minimal request
     const response = await axios.post(
       `${AI_SERVICE_URL}/chat`,
@@ -21,9 +22,14 @@ const checkAIServiceHealth = async () => {
       },
     );
 
+    console.log('🔍 AI service response status:', response.status);
+    console.log('🔍 AI service response data:', JSON.stringify(response.data));
+
     // If we get anything other than "Endpoint not found", the route exists
     const isEndpointNotFound =
       response.data?.error?.code === 'ENDPOINT_NOT_FOUND';
+    console.log('🔍 Is endpoint not found?', isEndpointNotFound);
+    
     return !isEndpointNotFound;
   } catch (error: any) {
     console.warn('AI service chat endpoint check failed:', error.message);
@@ -82,7 +88,7 @@ router.post('/chat', auth, async (req: any, res: any) => {
     // Check if AI service is healthy
     const isHealthy = await checkAIServiceHealth();
     console.log('🔍 AI service health check result:', isHealthy);
-    
+
     if (!isHealthy) {
       console.log('🚨 AI service unhealthy, returning maintenance message');
       return res.status(503).json({
