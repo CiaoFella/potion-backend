@@ -1,20 +1,19 @@
 import { plaidController } from './../controllers/plaidController';
 import { P90 } from './../../node_modules/aws-sdk/clients/iotwireless.d';
-import { plaidClient } from "../config/plaid";
-import { PlaidItem } from "../models/PlaidItem";
-import { Transaction } from "../models/Transaction";
-import { Types } from "mongoose";
-import { CountryCode, LinkTokenCreateRequest, Products } from "plaid";
-import { BalanceCalculationService } from "./balanceCalculationService";
-import { use } from "react";
-
+import { plaidClient } from '../config/plaid';
+import { PlaidItem } from '../models/PlaidItem';
+import { Transaction } from '../models/Transaction';
+import { Types } from 'mongoose';
+import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
+import { BalanceCalculationService } from './balanceCalculationService';
+import { use } from 'react';
 
 enum PlaidWebhookCode {
-  "userPermissionRevoked" = "USER_PERMISSION_REVOKED",
-  "initialUpdate" = "INITIAL_UPDATE",
-  "historicalUpdate" = "HISTORICAL_UPDATE",
-  "defaultUpdate" = "DEFAULT_UPDATE",
-  "syncUpdatesAvailable" = "SYNC_UPDATES_AVAILABLE",
+  'userPermissionRevoked' = 'USER_PERMISSION_REVOKED',
+  'initialUpdate' = 'INITIAL_UPDATE',
+  'historicalUpdate' = 'HISTORICAL_UPDATE',
+  'defaultUpdate' = 'DEFAULT_UPDATE',
+  'syncUpdatesAvailable' = 'SYNC_UPDATES_AVAILABLE',
 }
 export class PlaidService {
   static async createLinkToken(userId: string, existingToken?: string) {
@@ -23,16 +22,16 @@ export class PlaidService {
         user: {
           client_user_id: userId,
         },
-        client_name: "Potion Finance",
+        client_name: 'Potion Finance',
         products: [Products.Transactions],
         country_codes: [CountryCode.Us],
-        language: "en",
+        language: 'en',
         webhook: `${process.env.API_URL}api/plaid/webhook`,
         transactions: {
           days_requested: 730,
         },
         update: {
-            account_selection_enabled: !!existingToken,
+          account_selection_enabled: !!existingToken,
         },
         access_token: existingToken ? existingToken : undefined,
       };
@@ -40,7 +39,7 @@ export class PlaidService {
       const response = await plaidClient.linkTokenCreate(configs);
       return response.data;
     } catch (error) {
-      console.error("Error creating link token:", error);
+      console.error('Error creating link token:', error);
       throw error;
     }
   }
@@ -48,12 +47,12 @@ export class PlaidService {
   static async removeItem(access_token: string) {
     try {
       const response = await plaidClient.itemRemove({
-        access_token
+        access_token,
       });
 
       return response.data;
     } catch (error) {
-      console.error("Error creating link token:", error);
+      console.error('Error creating link token:', error);
       throw error;
     }
   }
@@ -100,15 +99,20 @@ export class PlaidService {
             institutionName: institutionResponse.data.institution.name,
           })),
         },
-        { upsert: true, new: true }
+        { upsert: true, new: true },
       );
 
       // Sync transactions immediately after linking account
-      await PlaidService.syncTransactions(plaidItem._id.toString());
+      const transactionCount = await PlaidService.syncTransactions(
+        plaidItem._id.toString(),
+      );
 
-      return plaidItem;
+      return {
+        ...plaidItem.toObject(),
+        newTransactionsCount: transactionCount,
+      };
     } catch (error) {
-      console.error("Error exchanging public token:", error);
+      console.error('Error exchanging public token:', error);
       throw error;
     }
   }
@@ -117,11 +121,11 @@ export class PlaidService {
     try {
       const plaidItem = await PlaidItem.findById(plaidItemId);
       if (!plaidItem) {
-        throw new Error("Plaid item not found");
+        throw new Error('Plaid item not found');
       }
 
       console.log(
-        `[PlaidService] Syncing transactions for plaidItem: ${plaidItemId}, userId: ${plaidItem.userId}`
+        `[PlaidService] Syncing transactions for plaidItem: ${plaidItemId}, userId: ${plaidItem.userId}`,
       );
 
       let hasMore = true;
@@ -149,7 +153,7 @@ export class PlaidService {
           });
 
           console.log(
-            `[PlaidService] Sync response - Added: ${added.length}, Modified: ${modified.length}, Removed: ${removed.length}`
+            `[PlaidService] Sync response - Added: ${added.length}, Modified: ${modified.length}, Removed: ${removed.length}`,
           );
 
           // Process added transactions
@@ -160,12 +164,12 @@ export class PlaidService {
               amount: Math.abs(plaidTransaction.amount),
               description: plaidTransaction.name,
               bankAccount: plaidTransaction.account_id,
-              cardLastFour: accountMap[plaidTransaction.account_id]?.mask || "",
+              cardLastFour: accountMap[plaidTransaction.account_id]?.mask || '',
               account: JSON.stringify(accountMap[plaidTransaction.account_id]),
               counterparty:
                 plaidTransaction.merchant_name || plaidTransaction.name,
               category:
-                plaidTransaction.personal_finance_category?.primary || "",
+                plaidTransaction.personal_finance_category?.primary || '',
               createdBy: plaidItem.userId,
               plaidTransactionId: plaidTransaction.transaction_id,
             };
@@ -184,8 +188,8 @@ export class PlaidService {
                 counterparty:
                   plaidTransaction.merchant_name || plaidTransaction.name,
                 category:
-                  plaidTransaction.personal_finance_category?.primary || "",
-              }
+                  plaidTransaction.personal_finance_category?.primary || '',
+              },
             );
           }
 
@@ -211,10 +215,10 @@ export class PlaidService {
         } catch (error: any) {
           if (
             error.response?.data?.error_code ===
-            "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION"
+            'TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION'
           ) {
             console.log(
-              "[PlaidService] Mutation detected during pagination, restarting from preserved cursor"
+              '[PlaidService] Mutation detected during pagination, restarting from preserved cursor',
             );
             cursor = preservedCursor;
             continue;
@@ -224,27 +228,27 @@ export class PlaidService {
       }
 
       console.log(
-        `[PlaidService] Created ${createdCount} new transactions for userId: ${plaidItem.userId}`
+        `[PlaidService] Created ${createdCount} new transactions for userId: ${plaidItem.userId}`,
       );
 
       // Update balances after transaction sync
       try {
         await BalanceCalculationService.updateBalancesAfterSync(
           plaidItem.userId.toString(),
-          plaidItemId
+          plaidItemId,
         );
         console.log(`[PlaidService] Balance calculation completed after sync`);
       } catch (error) {
         console.error(
           `[PlaidService] Error updating balances after sync:`,
-          error
+          error,
         );
         // Don't fail the sync if balance calculation fails
       }
 
       return createdCount;
     } catch (error) {
-      console.error("Error syncing transactions:", error);
+      console.error('Error syncing transactions:', error);
       throw error;
     }
   }
@@ -252,7 +256,7 @@ export class PlaidService {
   static async deletePlaidItem(itemId: string) {
     try {
       let plaidItem = await PlaidItem.findOne({
-        itemId
+        itemId,
       });
 
       if (!plaidItem) {
@@ -260,13 +264,13 @@ export class PlaidService {
       }
 
       plaidItem.accounts?.map(async (account) => {
-          await Transaction.deleteMany({ bankAccount: account.accountId });
-      })
+        await Transaction.deleteMany({ bankAccount: account.accountId });
+      });
 
       await PlaidService.removeItem(plaidItem.accessToken);
-      await PlaidItem.deleteOne({ _id: plaidItem._id });    
+      await PlaidItem.deleteOne({ _id: plaidItem._id });
     } catch (error: any) {
-      console.error("[PlaidService] Error deleting Plaid item:", error.message);
+      console.error('[PlaidService] Error deleting Plaid item:', error.message);
       throw error;
     }
   }
@@ -276,25 +280,25 @@ export class PlaidService {
       const { webhook_type, webhook_code, item_id } = webhookData;
       console.log(`Received webhook: ${webhookData}`);
 
-      if (webhook_type === "ITEM") {
+      if (webhook_type === 'ITEM') {
         if (webhook_code === PlaidWebhookCode.userPermissionRevoked) {
           this.deletePlaidItem(item_id);
         }
       }
 
-      if (webhook_type === "TRANSACTIONS") {
+      if (webhook_type === 'TRANSACTIONS') {
         const plaidItem = await PlaidItem.findOne({ itemId: item_id });
         if (!plaidItem) {
           console.error(`Plaid item not found for item_id: ${item_id}`);
-          throw new Error("Plaid item not found");
+          throw new Error('Plaid item not found');
         }
 
         // Handle all types of transaction updates
         const validUpdateCodes = [
-          "INITIAL_UPDATE",
-          "HISTORICAL_UPDATE",
-          "DEFAULT_UPDATE",
-          "SYNC_UPDATES_AVAILABLE",
+          'INITIAL_UPDATE',
+          'HISTORICAL_UPDATE',
+          'DEFAULT_UPDATE',
+          'SYNC_UPDATES_AVAILABLE',
         ];
 
         if (validUpdateCodes.includes(webhook_code)) {
@@ -302,7 +306,7 @@ export class PlaidService {
           // Sync new transactions
           await this.syncTransactions(plaidItem._id.toString());
           console.log(
-            `Successfully synced transactions for item_id: ${item_id}`
+            `Successfully synced transactions for item_id: ${item_id}`,
           );
         } else {
           console.log(`Ignoring unhandled webhook code: ${webhook_code}`);
@@ -311,7 +315,7 @@ export class PlaidService {
 
       return true;
     } catch (error) {
-      console.error("Error handling webhook:", error);
+      console.error('Error handling webhook:', error);
       throw error;
     }
   }
@@ -319,21 +323,21 @@ export class PlaidService {
 
 function classifyTransaction(txn) {
   if (txn.amount < 0) {
-    return "Income";
+    return 'Income';
   }
 
-  const incomeKeywords = ["deposit", "payroll", "refund", "cashback", "rebate"];
-  const nameLower = txn.name?.toLowerCase() || "";
-  const categoryLower = (txn.category || []).join(",").toLowerCase();
+  const incomeKeywords = ['deposit', 'payroll', 'refund', 'cashback', 'rebate'];
+  const nameLower = txn.name?.toLowerCase() || '';
+  const categoryLower = (txn.category || []).join(',').toLowerCase();
 
   if (
     incomeKeywords.some(
       (keyword) =>
-        nameLower.includes(keyword) || categoryLower.includes(keyword)
+        nameLower.includes(keyword) || categoryLower.includes(keyword),
     )
   ) {
-    return "Income";
+    return 'Income';
   }
 
-  return "Expense";
+  return 'Expense';
 }
