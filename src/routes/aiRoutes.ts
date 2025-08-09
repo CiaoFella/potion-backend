@@ -67,6 +67,34 @@ router.get('/chat/health', auth, proxyToAIService('/api/chat/health'));
 // Available AI models
 router.get('/chat/models', auth, proxyToAIService('/api/chat/models'));
 
+// Transaction categorization endpoints
+router.post('/transaction/categorize/:transactionId', auth, (req, res) => {
+  const { transactionId } = req.params;
+  const queryString = req.url.includes('?') ? req.url.split('?')[1] : '';
+  const path = `/api/transaction/categorize/${transactionId}${queryString ? '?' + queryString : ''}`;
+  return proxyToAIService(path)(req, res);
+});
+
+// Transaction chat history endpoint
+router.get('/transaction/chat-history/:transactionId', auth, (req, res) => {
+  const { transactionId } = req.params;
+  return proxyToAIService(`/api/transaction/chat-history/${transactionId}`)(
+    req,
+    res,
+  );
+});
+
+// Chat sessions endpoints
+router.get('/chat/sessions', auth, proxyToAIService('/api/chat/sessions'));
+router.get('/chat/sessions/:sessionId', auth, (req, res) => {
+  const { sessionId } = req.params;
+  return proxyToAIService(`/api/chat/sessions/${sessionId}`)(req, res);
+});
+router.delete('/chat/sessions/:sessionId', auth, (req, res) => {
+  const { sessionId } = req.params;
+  return proxyToAIService(`/api/chat/sessions/${sessionId}`)(req, res);
+});
+
 // AI service status (public endpoint for monitoring)
 router.get('/status', async (req, res) => {
   try {

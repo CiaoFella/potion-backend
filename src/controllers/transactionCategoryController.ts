@@ -28,7 +28,7 @@ export const transactionCategoryController = {
       const aiServiceUrl =
         process.env.AI_SERVICE_URL ||
         (process.env.NODE_ENV === 'production'
-          ? 'https://ai.potionapp.com/api'
+          ? 'http://ai.potionapp.com/api'
           : 'http://localhost:5001/api');
 
       const aiUrl = `${aiServiceUrl}/transaction/categorize/${transactionId}?type=chat`;
@@ -184,7 +184,7 @@ export const transactionCategoryController = {
       const aiServiceUrl =
         process.env.AI_SERVICE_URL ||
         (process.env.NODE_ENV === 'production'
-          ? 'https://ai.potionapp.com/api'
+          ? 'http://ai.potionapp.com/api'
           : 'http://localhost:5001/api');
 
       const aiUrl = `${aiServiceUrl}/transaction/categorize/${transactionId}?type=category`;
