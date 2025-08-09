@@ -7,16 +7,24 @@ const router = express.Router();
 // AI Service configuration
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
 
-// Temporary fix: Check if AI service has correct routes
+// Check if AI service has the required chat endpoints
 const checkAIServiceHealth = async () => {
   try {
-    const response = await axios.get(
-      `${AI_SERVICE_URL.replace('/api', '')}/health`,
-      { timeout: 5000 },
+    // Test the actual chat endpoint with a minimal request
+    const response = await axios.post(`${AI_SERVICE_URL}/chat`, 
+      { message: "health check" }, 
+      { 
+        timeout: 5000,
+        headers: { 'Content-Type': 'application/json' },
+        validateStatus: (status) => status < 500 // Accept 4xx but not 5xx
+      }
     );
-    return response.status === 200;
-  } catch (error) {
-    console.warn('AI service health check failed:', error.message);
+    
+    // If we get anything other than "Endpoint not found", the route exists
+    const isEndpointNotFound = response.data?.error?.code === 'ENDPOINT_NOT_FOUND';
+    return !isEndpointNotFound;
+  } catch (error: any) {
+    console.warn('AI service chat endpoint check failed:', error.message);
     return false;
   }
 };
