@@ -66,29 +66,31 @@ const proxyToAIService = (path: string) => {
 };
 
 // Chat completion endpoint with fallback
-router.post('/chat', auth, async (req, res) => {
+router.post('/chat', auth, async (req: any, res: any) => {
   try {
     // Check if AI service is healthy
     const isHealthy = await checkAIServiceHealth();
-    
+
     if (!isHealthy) {
       return res.status(503).json({
         success: false,
         error: {
-          message: 'AI service is currently unavailable. The service is being updated with new features. Please try again in a few minutes.',
+          message:
+            'AI service is currently unavailable. The service is being updated with new features. Please try again in a few minutes.',
           code: 'AI_SERVICE_MAINTENANCE',
         },
       });
     }
 
     // If healthy, try the proxy
-    return proxyToAIService('/api/chat')(req, res);
+    await proxyToAIService('/api/chat')(req, res);
   } catch (error) {
     console.error('AI chat endpoint error:', error);
     return res.status(503).json({
       success: false,
       error: {
-        message: 'AI service is temporarily unavailable. Please try again later.',
+        message:
+          'AI service is temporarily unavailable. Please try again later.',
         code: 'AI_SERVICE_ERROR',
       },
     });
