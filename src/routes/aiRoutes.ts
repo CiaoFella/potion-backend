@@ -22,7 +22,7 @@ const proxyToAIService = (path: string) => {
           Authorization: req.headers.authorization,
           'Content-Type': 'application/json',
         },
-        timeout: 60000, // 60 seconds for AI processing
+        timeout: 130000, // 130 seconds for complex AI processing (10s buffer)
       });
 
       // Forward the response back to client
