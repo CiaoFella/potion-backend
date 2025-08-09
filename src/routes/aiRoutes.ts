@@ -7,6 +7,20 @@ const router = express.Router();
 // AI Service configuration
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
 
+// Temporary fix: Check if AI service has correct routes
+const checkAIServiceHealth = async () => {
+  try {
+    const response = await axios.get(
+      `${AI_SERVICE_URL.replace('/api', '')}/health`,
+      { timeout: 5000 },
+    );
+    return response.status === 200;
+  } catch (error) {
+    console.warn('AI service health check failed:', error.message);
+    return false;
+  }
+};
+
 /**
  * Proxy middleware to forward requests to AI service
  */
@@ -51,8 +65,35 @@ const proxyToAIService = (path: string) => {
   };
 };
 
-// Chat completion endpoint
-router.post('/chat', auth, proxyToAIService('/api/chat'));
+// Chat completion endpoint with fallback
+router.post('/chat', auth, async (req, res) => {
+  try {
+    // Check if AI service is healthy
+    const isHealthy = await checkAIServiceHealth();
+    
+    if (!isHealthy) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          message: 'AI service is currently unavailable. The service is being updated with new features. Please try again in a few minutes.',
+          code: 'AI_SERVICE_MAINTENANCE',
+        },
+      });
+    }
+
+    // If healthy, try the proxy
+    return proxyToAIService('/api/chat')(req, res);
+  } catch (error) {
+    console.error('AI chat endpoint error:', error);
+    return res.status(503).json({
+      success: false,
+      error: {
+        message: 'AI service is temporarily unavailable. Please try again later.',
+        code: 'AI_SERVICE_ERROR',
+      },
+    });
+  }
+});
 
 // Document generation endpoint
 router.post(
