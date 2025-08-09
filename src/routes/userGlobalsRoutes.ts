@@ -31,7 +31,7 @@ const router = express.Router();
  *       404:
  *         description: No data found
  */
-router.get("/tax-goal", userGlobalController.getTaxWriteOffGoal);
+router.get("/tax-goal", auth,  userGlobalController.getTaxWriteOffGoal);
 
 /**
  * @swagger
@@ -64,7 +64,7 @@ router.get("/tax-goal", userGlobalController.getTaxWriteOffGoal);
  *       401:
  *         description: Unauthorized
  */
-router.post("/tax-goal", userGlobalController.setTaxWriteOffGoal);
+router.post("/tax-goal", auth,  userGlobalController.setTaxWriteOffGoal);
 
 /**
  * @swagger
@@ -99,7 +99,7 @@ router.post("/tax-goal", userGlobalController.setTaxWriteOffGoal);
  *       401:
  *         description: Unauthorized
  */
-router.patch("/", userGlobalController.updateGlobalValues);
+router.patch("/", auth,  userGlobalController.updateGlobalValues);
 
 /**
  * @swagger
@@ -122,6 +122,6 @@ router.patch("/", userGlobalController.updateGlobalValues);
  *       404:
  *         description: No data found
  */
-router.get("/", userGlobalController.getGlobalValues);
+router.get("/", auth,  userGlobalController.getGlobalValues);
 
 export default router;
