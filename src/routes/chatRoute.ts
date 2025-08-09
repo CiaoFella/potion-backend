@@ -255,4 +255,6 @@ router.get('/:id/messages', auth, chatController.getChatMessages);
  */
 router.post('/:id/messages', auth, chatController.addMessage);
 
+
+
 export default router;

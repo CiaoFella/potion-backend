@@ -285,6 +285,39 @@ app.use(
   chatRoute,
 );
 
+// Thread suggestions endpoint (separate from chat routes)
+app.get(
+  '/api/thread-suggestions',
+  ...protectedWithSubscription,
+  requireRole(UserRole.USER, UserRole.ACCOUNTANT),
+  async (req: any, res: any) => {
+    try {
+      // Return predefined conversation starters
+      const suggestions = [
+        'What are my biggest expenses this month?',
+        'Show me my income trends',
+        'What tax deductions can I claim?',
+        'Analyze my spending patterns',
+        'Help me categorize recent transactions',
+        "What's my profit margin for this quarter?",
+        'Show me outstanding invoices',
+        'Create a financial summary report',
+      ];
+
+      res.json({
+        success: true,
+        suggestions: suggestions.slice(0, 4), // Return 4 suggestions
+      });
+    } catch (error: any) {
+      console.error('Error fetching thread suggestions:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  },
+);
+
 // AI Service integration routes
 app.use(
   '/api/ai',
