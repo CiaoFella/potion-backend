@@ -11,13 +11,16 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
 const checkAIServiceHealth = async () => {
   try {
     console.log('🔍 Testing AI service URL:', `${AI_SERVICE_URL}/chat`);
-    // Test the actual chat endpoint with a minimal request
+    // Test the actual chat endpoint with a minimal request (no auth needed for health check)
     const response = await axios.post(
       `${AI_SERVICE_URL}/chat`,
       { message: 'health check' },
       {
         timeout: 5000,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer dummy', // Just to test if endpoint exists
+        },
         validateStatus: (status) => status < 500, // Accept 4xx but not 5xx
       },
     );
@@ -29,7 +32,7 @@ const checkAIServiceHealth = async () => {
     const isEndpointNotFound =
       response.data?.error?.code === 'ENDPOINT_NOT_FOUND';
     console.log('🔍 Is endpoint not found?', isEndpointNotFound);
-    
+
     return !isEndpointNotFound;
   } catch (error: any) {
     console.warn('AI service chat endpoint check failed:', error.message);
@@ -81,41 +84,8 @@ const proxyToAIService = (path: string) => {
   };
 };
 
-// Chat completion endpoint with fallback
-router.post('/chat', auth, async (req: any, res: any) => {
-  try {
-    console.log('🔍 Checking AI service health...');
-    // Check if AI service is healthy
-    const isHealthy = await checkAIServiceHealth();
-    console.log('🔍 AI service health check result:', isHealthy);
-
-    if (!isHealthy) {
-      console.log('🚨 AI service unhealthy, returning maintenance message');
-      return res.status(503).json({
-        success: false,
-        error: {
-          message:
-            'AI service is currently unavailable. The service is being updated with new features. Please try again in a few minutes.',
-          code: 'AI_SERVICE_MAINTENANCE',
-        },
-      });
-    }
-
-    console.log('✅ AI service healthy, proxying request');
-    // If healthy, try the proxy
-    await proxyToAIService('/api/chat')(req, res);
-  } catch (error) {
-    console.error('AI chat endpoint error:', error);
-    return res.status(503).json({
-      success: false,
-      error: {
-        message:
-          'AI service is temporarily unavailable. Please try again later.',
-        code: 'AI_SERVICE_ERROR',
-      },
-    });
-  }
-});
+// Chat completion endpoint (routes exist, proxy should work)
+router.post('/chat', auth, proxyToAIService('/api/chat'));
 
 // Document generation endpoint
 router.post(
