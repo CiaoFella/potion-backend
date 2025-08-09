@@ -231,7 +231,7 @@ router.post("/send-email/:invoiceId", auth, invoiceController.sendToEmail);
  *       404:
  *         description: Invoice not found
  */
-router.post("/public/:invoiceId", invoiceController.updateInvoicePublicToOpen);
+router.post("/public/:invoiceId", auth, invoiceController.updateInvoicePublicToOpen);
 
 /**
  * @swagger

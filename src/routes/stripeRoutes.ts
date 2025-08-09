@@ -12,8 +12,8 @@ import {
 } from '../controllers/stripeController';
 const router = express.Router();
 
-router.post('/checkout/direct', createDirectCheckout);
-router.get('/session/:sessionId', getSessionCustomerEmail);
+router.post('/checkout/direct', auth, createDirectCheckout);
+router.get('/session/:sessionId', auth, getSessionCustomerEmail);
 
 router.post('/subscription', auth, createUserSubscription);
 router.delete('/subscription', auth, cancelUserSubscription);
