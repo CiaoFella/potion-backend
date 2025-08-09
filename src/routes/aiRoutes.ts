@@ -46,10 +46,15 @@ const checkAIServiceHealth = async () => {
 const proxyToAIService = (path: string) => {
   return async (req: any, res: any) => {
     try {
+      const fullUrl = `${AI_SERVICE_URL}${path}`;
+      console.log('🔗 Proxying to:', fullUrl);
+      console.log('🔗 Request body:', JSON.stringify(req.body));
+      console.log('🔗 Auth header:', req.headers.authorization?.substring(0, 20) + '...');
+      
       // Forward the request to AI service with JWT token
       const response = await axios({
         method: req.method,
-        url: `${AI_SERVICE_URL}${path}`,
+        url: fullUrl,
         data: req.body,
         headers: {
           Authorization: req.headers.authorization,
@@ -58,11 +63,15 @@ const proxyToAIService = (path: string) => {
         timeout: 60000, // 60 seconds for AI processing
       });
 
+      console.log('🔗 AI service responded with status:', response.status);
+      console.log('🔗 AI service response:', JSON.stringify(response.data).substring(0, 200) + '...');
+
       // Forward the response back to client
       res.status(response.status).json(response.data);
     } catch (error: any) {
       console.error('AI service proxy error:', {
         path,
+        fullUrl: `${AI_SERVICE_URL}${path}`,
         error: error.response?.data || error.message,
         status: error.response?.status || 500,
         userId: req.user?.id,
