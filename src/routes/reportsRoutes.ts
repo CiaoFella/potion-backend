@@ -182,6 +182,106 @@ router.get("/profit-loss", auth, reportsController.getProfitAndLoss);
 
 /**
  * @swagger
+ * /api/reports/cash-flow:
+ *   get:
+ *     summary: Generate a Cash Flow Statement
+ *     tags: [Reports]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for custom date range (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for custom date range (YYYY-MM-DD)
+ *       - in: query
+ *         name: duration
+ *         schema:
+ *           type: string
+ *           enum: [monthly, quarterly, yearly, ytd]
+ *         description: Predefined duration period
+ *     responses:
+ *       200:
+ *         description: Cash Flow Statement
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 report:
+ *                   type: object
+ *                   properties:
+ *                     reportName:
+ *                       type: string
+ *                     period:
+ *                       type: string
+ *                     operatingActivities:
+ *                       type: object
+ *                     investingActivities:
+ *                       type: object
+ *                     financingActivities:
+ *                       type: object
+ *                     summary:
+ *                       type: object
+ */
+router.get("/cash-flow", auth, reportsController.getCashFlow);
+
+/**
+ * @swagger
+ * /api/reports/balance-sheet:
+ *   get:
+ *     summary: Generate a Balance Sheet
+ *     tags: [Reports]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for custom date range (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for custom date range (YYYY-MM-DD)
+ *       - in: query
+ *         name: duration
+ *         schema:
+ *           type: string
+ *           enum: [monthly, quarterly, yearly, ytd]
+ *         description: Predefined duration period
+ *     responses:
+ *       200:
+ *         description: Balance Sheet
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 report:
+ *                   type: object
+ *                   properties:
+ *                     reportName:
+ *                       type: string
+ *                     period:
+ *                       type: string
+ *                     assets:
+ *                       type: object
+ *                     liabilities:
+ *                       type: object
+ *                     equity:
+ *                       type: object
+ */
+router.get("/balance-sheet", auth, reportsController.getBalanceSheet);
+
+/**
+ * @swagger
  * /api/reports/balance-sheet:
  *   get:
  *     summary: Generate a Balance Sheet
