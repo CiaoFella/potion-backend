@@ -1069,7 +1069,9 @@ export const sendRoleInvitationEmail = async (
 ): Promise<void> => {
   try {
     // Get business owner info
-    const businessOwner = userRole.businessOwner;
+    const businessOwner = await User.findById(
+      userRole.businessOwner,
+    ).select('firstName lastName businessName email');
     const businessOwnerName = businessOwner
       ? `${businessOwner.firstName} ${businessOwner.lastName}`.trim() ||
         businessOwner.businessName ||

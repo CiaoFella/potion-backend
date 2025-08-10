@@ -65,6 +65,7 @@ export const inviteAccountant = async (
       };
       
       const user = new User(userData);
+      await user.save();
 
       const inviteToken = jwt.sign(
         { userId: user._id, businessOwnerId: userId, roleType: UserRoleType.ACCOUNTANT},
@@ -97,7 +98,7 @@ export const inviteAccountant = async (
           passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           invitedBy: userId,
           invitedAt: new Date(),
-          businessOwner: userId,
+          businessOwner: inviter?._id || null,
         });
 
         await userRole.save();
