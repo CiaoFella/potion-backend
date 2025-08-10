@@ -9,6 +9,8 @@ import { config } from '../config/config';
 import { reactEmailService } from '../services/reactEmailService';
 import type { AccountantLoginReadyProps } from '../templates/react-email/accountant-login-ready';
 import type { AccountantRemovedProps } from '../templates/react-email/accountant-removed';
+import { AccessLevel, UserRoles, UserRoleType } from '../models/UserRoles';
+import { sendRoleInvitationEmail } from './unifiedAuthController';
 
 // Invite an accountant
 export const inviteAccountant = async (
@@ -46,6 +48,60 @@ export const inviteAccountant = async (
         userAccesses: [],
       });
       isNewAccountant = true;
+    }
+
+    // Check if a user with this email already exists and create one if not
+    const existingUser = await User.findOne({ email });
+    
+    if (!existingUser) {
+      const userData: any = {
+        email: email.toLowerCase(),
+        firstName: accountant?.name?.split(' ')[0] || '',
+        lastName: accountant?.name?.split(' ').slice(1).join(' ') || '',
+        password: 'temp_password_' + Date.now(), // Temporary password
+        authProvider: 'password',
+        role: 'accountant',
+        isPasswordSet: false,
+      };
+      
+      const user = new User(userData);
+
+      const inviteToken = jwt.sign(
+        { userId: user._id, businessOwnerId: userId, roleType: UserRoleType.ACCOUNTANT},
+        config.jwtSecret!,
+        { expiresIn: '7d' },
+      );
+  
+      const passwordSetupToken = jwt.sign(
+        { userId: user._id, roleType: UserRoleType.ACCOUNTANT, setup: true },
+        config.jwtSecret!,
+        { expiresIn: '7d' },
+      ); 
+
+      const inviter = await User.findById(userId);
+
+      enum roleTranslation {
+        "edit" = AccessLevel.CONTRIBUTOR,
+        "read" = AccessLevel.VIEWER
+      }
+
+      const userRole = new UserRoles({
+          user: user._id,
+          email: user.email,
+          roleType: UserRoleType.ACCOUNTANT,
+          accessLevel: roleTranslation[accessLevel],
+          status: 'invited',
+          inviteToken,
+          inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          passwordSetupToken,
+          passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          invitedBy: userId,
+          invitedAt: new Date(),
+          businessOwner: userId,
+        });
+
+        await userRole.save();
+        await sendRoleInvitationEmail(user, userRole);
     }
 
     // Check if this accountant already has access to this user

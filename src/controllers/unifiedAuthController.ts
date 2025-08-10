@@ -1063,7 +1063,7 @@ export const unifiedForgotPassword = async (
 /**
  * Send role invitation email
  */
-const sendRoleInvitationEmail = async (
+export const sendRoleInvitationEmail = async (
   user: any,
   userRole: any,
 ): Promise<void> => {
