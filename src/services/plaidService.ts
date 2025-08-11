@@ -2,7 +2,7 @@ import { plaidController } from './../controllers/plaidController';
 import { P90 } from './../../node_modules/aws-sdk/clients/iotwireless.d';
 import { plaidClient } from '../config/plaid';
 import { PlaidItem } from '../models/PlaidItem';
-import { Transaction } from '../models/Transaction';
+import { predictCategory, Transaction } from '../models/Transaction';
 import { Types } from 'mongoose';
 import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
 import { BalanceCalculationService } from './balanceCalculationService';
@@ -167,6 +167,7 @@ export class PlaidService {
             };
 
             await Transaction.create(transaction);
+            predictCategory(transaction)
             createdCount++;
           }
 
