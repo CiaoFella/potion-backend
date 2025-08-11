@@ -73,6 +73,17 @@ const sendPasswordResetEmail = async (
 import { Accountant, UserAccountantAccess } from '../models/AccountantAccess';
 import { Subcontractor } from '../models/Subcontractor';
 import { SubcontractorProjectAccess } from '../models/SubcontractorProjectAccess';
+import { Transaction } from '../models/Transaction';
+import { UserRole } from '../middleware/rbac';
+import { PlaidItem } from '../models/PlaidItem';
+import { UserRoles } from '../models/UserRoles';
+import { UserGlobalValues } from '../models/UserGlobalValues';
+import { Chat } from '../models/Chat';
+import { Report } from '../models/Report';
+import { Invoice } from '../models/Invoice';
+import { Client } from '../models/Client';
+import { Project } from '../models/Project';
+import { Message } from '../models/Message';
 
 export const generateTokens = (userId: string): Tokens => {
   const accessToken = jwt.sign({ userId }, config.jwtSecret!, {
@@ -1042,7 +1053,7 @@ export const getUser = async (req: Request, res: Response): Promise<any> => {
 export const deleteUser = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = req.user?.userId;
-
+    console.log('Deleting user with ID:', userId);
     const user = await User.findById(userId);
 
     if (!user) {
@@ -1050,10 +1061,32 @@ export const deleteUser = async (req: Request, res: Response): Promise<any> => {
         message: 'User not found',
       });
     }
+    const plaidItems = await PlaidItem.find({ userId: userId });
+    console.log(plaidItems.length, 'Plaid items found for user');
 
-    user.isUserDeleted = true;
+    plaidItems?.map(async (item) => {
+      item?.accounts?.map(async (account) => {
+        await Transaction.deleteMany({
+          bankAccount: account.accountId
+        });
+      });
 
-    user.save();
+      await PlaidItem.deleteOne({ _id: item._id });
+    });
+
+    UserRoles.deleteMany({ user: userId });
+    UserGlobalValues.deleteMany({ user: userId });
+    UserAccountantAccess.deleteMany({ user: userId });
+    Chat.deleteMany({ createdBy: userId });
+    SubcontractorProjectAccess.deleteMany({ user: userId });
+    Subcontractor.deleteMany({ user: userId });
+    Report.deleteMany({ userId });
+    Invoice.deleteMany({ createdBy: userId });
+    Client.deleteMany({ createdBy: userId });
+    Project.deleteMany({ createdBy: userId });
+    Message.deleteMany({ createdBy: userId });
+
+    await User.deleteOne({ _id: userId });
 
     res.status(200).json({ message: 'User deleted' });
   } catch (error) {
