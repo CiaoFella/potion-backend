@@ -109,10 +109,10 @@ export const predictCategory = async (doc) => {
     const aiServiceUrl =
       process.env.AI_SERVICE_URL ||
       (process.env.NODE_ENV === 'production'
-        ? 'https://ai.potionapp.com/api'
-        : 'http://localhost:5001/api');
+        ? 'https://ai.potionapp.com'
+        : 'http://localhost:5001');
 
-    const url = `${aiServiceUrl}/transaction/categorize/${doc._id.toString()}?type=category`;
+    const url = `${aiServiceUrl}/api/transaction/categorize/${doc._id.toString()}?type=category`;
 
     const requestBody = {
       amount: doc.amount,

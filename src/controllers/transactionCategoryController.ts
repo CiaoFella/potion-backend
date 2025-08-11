@@ -28,10 +28,10 @@ export const transactionCategoryController = {
       const aiServiceUrl =
         process.env.AI_SERVICE_URL ||
         (process.env.NODE_ENV === 'production'
-          ? 'https://ai.potionapp.com/api'
-          : 'http://localhost:5001/api');
+          ? 'https://ai.potionapp.com'
+          : 'http://localhost:5001');
 
-      const aiUrl = `${aiServiceUrl}/transaction/categorize/${transactionId}?type=chat`;
+      const aiUrl = `${aiServiceUrl}/api/transaction/categorize/${transactionId}?type=chat`;
 
       const requestBody = {
         amount: transaction.amount,
@@ -177,10 +177,10 @@ export const transactionCategoryController = {
       const aiServiceUrl =
         process.env.AI_SERVICE_URL ||
         (process.env.NODE_ENV === 'production'
-          ? 'https://ai.potionapp.com/api'
-          : 'http://localhost:5001/api');
+          ? 'https://ai.potionapp.com'
+          : 'http://localhost:5001');
 
-      const aiUrl = `${aiServiceUrl}/transaction/categorize/${transactionId}?type=category`;
+      const aiUrl = `${aiServiceUrl}/api/transaction/categorize/${transactionId}?type=category`;
 
       const requestBody = {
         amount: transaction.amount,
