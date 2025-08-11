@@ -173,7 +173,7 @@ export class PlaidService {
 
           // Process modified transactions
           for (const plaidTransaction of modified) {
-            await Transaction.findOneAndUpdate(
+            const updatedTransaction = await Transaction.findOneAndUpdate(
               { plaidTransactionId: plaidTransaction.transaction_id },
               {
                 amount: Math.abs(plaidTransaction.amount),
@@ -184,6 +184,7 @@ export class PlaidService {
                   plaidTransaction.personal_finance_category?.primary || '',
               },
             );
+            await predictCategory(updatedTransaction)
           }
 
           // Process removed transactions
