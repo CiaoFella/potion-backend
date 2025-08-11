@@ -44,13 +44,6 @@ export const transactionCategoryController = {
         chatHistory: [], // Could be extended to store chat history
       };
 
-      console.log('🗣️ Forwarding transaction chat to AI service:', {
-        transactionId,
-        type,
-        hasMessage: !!message,
-        currentCategory: requestBody.currentCategory,
-      });
-
       // Forward to AI service
       const aiResponse = await fetch(aiUrl, {
         method: 'POST',

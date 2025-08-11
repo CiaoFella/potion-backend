@@ -39,8 +39,6 @@ const sendPasswordResetEmail = async (
       subject,
       html,
     });
-
-    console.log(`Password reset email sent to ${roleType}: ${email}`);
   } catch (templateError) {
     console.error(
       'Password reset template error, using fallback:',
@@ -202,9 +200,9 @@ export const setupPassword = async (
       // Get profile picture URL if exists
       let uri = foundUser?.profilePicture?.fileName
         ? await getSignedDownloadUrl(
-          foundUser!.profilePicture!.fileName || '',
-          foundUser!.profilePicture!.fileType || '',
-        )
+            foundUser!.profilePicture!.fileName || '',
+            foundUser!.profilePicture!.fileType || '',
+          )
         : '';
 
       res.json({
@@ -250,34 +248,34 @@ export const setupPassword = async (
       const userData =
         userType === 'accountant'
           ? {
-            firstName: foundUser.name ? foundUser.name.split(' ')[0] : '',
-            lastName: foundUser.name
-              ? foundUser.name.split(' ').slice(1).join(' ')
-              : '',
-            email: foundUser.email,
-            name: foundUser.name,
-          }
+              firstName: foundUser.name ? foundUser.name.split(' ')[0] : '',
+              lastName: foundUser.name
+                ? foundUser.name.split(' ').slice(1).join(' ')
+                : '',
+              email: foundUser.email,
+              name: foundUser.name,
+            }
           : userType === 'subcontractor'
             ? {
-              firstName: foundUser.fullName
-                ? foundUser.fullName.split(' ')[0]
-                : '',
-              lastName: foundUser.fullName
-                ? foundUser.fullName.split(' ').slice(1).join(' ')
-                : '',
-              email: foundUser.email,
-              fullName: foundUser.fullName,
-            }
+                firstName: foundUser.fullName
+                  ? foundUser.fullName.split(' ')[0]
+                  : '',
+                lastName: foundUser.fullName
+                  ? foundUser.fullName.split(' ').slice(1).join(' ')
+                  : '',
+                email: foundUser.email,
+                fullName: foundUser.fullName,
+              }
             : {
-              firstName: foundUser.fullName
-                ? foundUser.fullName.split(' ')[0]
-                : '',
-              lastName: foundUser.fullName
-                ? foundUser.fullName.split(' ').slice(1).join(' ')
-                : '',
-              email: foundUser.email,
-              fullName: foundUser.fullName,
-            };
+                firstName: foundUser.fullName
+                  ? foundUser.fullName.split(' ')[0]
+                  : '',
+                lastName: foundUser.fullName
+                  ? foundUser.fullName.split(' ').slice(1).join(' ')
+                  : '',
+                email: foundUser.email,
+                fullName: foundUser.fullName,
+              };
 
       res.json({
         user: userData,
@@ -298,7 +296,6 @@ export const validatePasswordToken = async (
 ): Promise<any> => {
   try {
     const { token } = req.params;
-    console.log('Validating token:', token);
 
     // Check all user types for the password setup token
     let foundUser = null;
@@ -311,7 +308,6 @@ export const validatePasswordToken = async (
     }).select('firstName lastName email isPasswordSet');
 
     if (user) {
-      console.log('Found user token');
       foundUser = user;
       userType = 'user';
     } else {
@@ -323,11 +319,6 @@ export const validatePasswordToken = async (
         .select('inviteTokenExpiry');
 
       if (accountantAccessAny) {
-        console.log('Found accountant token, checking expiry:', {
-          expiry: accountantAccessAny.inviteTokenExpiry,
-          now: new Date(),
-          expired: accountantAccessAny.inviteTokenExpiry <= new Date(),
-        });
       }
 
       // Check accountants with valid (non-expired) tokens
@@ -379,37 +370,37 @@ export const validatePasswordToken = async (
     const userData =
       userType === 'user'
         ? {
-          firstName: foundUser.firstName,
-          lastName: foundUser.lastName,
-          email: foundUser.email,
-        }
-        : userType === 'accountant'
-          ? {
-            firstName: foundUser.name ? foundUser.name.split(' ')[0] : '',
-            lastName: foundUser.name
-              ? foundUser.name.split(' ').slice(1).join(' ')
-              : '',
+            firstName: foundUser.firstName,
+            lastName: foundUser.lastName,
             email: foundUser.email,
           }
-          : userType === 'subcontractor'
-            ? {
-              firstName: foundUser.fullName
-                ? foundUser.fullName.split(' ')[0]
-                : '',
-              lastName: foundUser.fullName
-                ? foundUser.fullName.split(' ').slice(1).join(' ')
+        : userType === 'accountant'
+          ? {
+              firstName: foundUser.name ? foundUser.name.split(' ')[0] : '',
+              lastName: foundUser.name
+                ? foundUser.name.split(' ').slice(1).join(' ')
                 : '',
               email: foundUser.email,
             }
+          : userType === 'subcontractor'
+            ? {
+                firstName: foundUser.fullName
+                  ? foundUser.fullName.split(' ')[0]
+                  : '',
+                lastName: foundUser.fullName
+                  ? foundUser.fullName.split(' ').slice(1).join(' ')
+                  : '',
+                email: foundUser.email,
+              }
             : {
-              firstName: foundUser.fullName
-                ? foundUser.fullName.split(' ')[0]
-                : '',
-              lastName: foundUser.fullName
-                ? foundUser.fullName.split(' ').slice(1).join(' ')
-                : '',
-              email: foundUser.email,
-            };
+                firstName: foundUser.fullName
+                  ? foundUser.fullName.split(' ')[0]
+                  : '',
+                lastName: foundUser.fullName
+                  ? foundUser.fullName.split(' ').slice(1).join(' ')
+                  : '',
+                email: foundUser.email,
+              };
 
     res.json({
       valid: true,
@@ -559,9 +550,9 @@ export const googleCheck = async (
       // Get profile picture URL if available
       let uri = user?.profilePicture?.fileName
         ? await getSignedDownloadUrl(
-          user.profilePicture.fileName,
-          user.profilePicture.fileType || '',
-        )
+            user.profilePicture.fileName,
+            user.profilePicture.fileType || '',
+          )
         : '';
 
       res.json({
@@ -635,9 +626,9 @@ export const login = async (req: Request, res: Response): Promise<any> => {
 
     let uri = user?.profilePicture?.fileName
       ? await getSignedDownloadUrl(
-        user!.profilePicture!.fileName || '',
-        user!.profilePicture!.fileType || '',
-      )
+          user!.profilePicture!.fileName || '',
+          user!.profilePicture!.fileType || '',
+        )
       : '';
 
     // Check subscription status for user feedback
@@ -783,7 +774,9 @@ export const unifiedForgotPassword = async (
 
     switch (roleType) {
       case 'business_owner':
-        const businessOwner = await User.findOne({ email: email.toLowerCase() });
+        const businessOwner = await User.findOne({
+          email: email.toLowerCase(),
+        });
         if (businessOwner) {
           foundUser = businessOwner;
           userType = 'business_owner';
@@ -987,9 +980,9 @@ export const updateUser = async (req: Request, res: Response): Promise<any> => {
 
     let uri = user?.profilePicture?.fileName
       ? await getSignedDownloadUrl(
-        user!.profilePicture!.fileName || '',
-        user!.profilePicture!.fileType || '',
-      )
+          user!.profilePicture!.fileName || '',
+          user!.profilePicture!.fileType || '',
+        )
       : '';
 
     res.json({
@@ -1018,18 +1011,18 @@ export const getUser = async (req: Request, res: Response): Promise<any> => {
 
     let uri = user?.profilePicture?.fileName
       ? await getSignedDownloadUrl(
-        user!.profilePicture!.fileName || '',
-        user!.profilePicture!.fileType || '',
-      )
+          user!.profilePicture!.fileName || '',
+          user!.profilePicture!.fileType || '',
+        )
       : '';
 
     // Add subscription info to user data
     const subscriptionInfo = user.subscription
       ? {
-        status: user.subscription.status,
-        trialEndsAt: user.subscription.trialEndsAt,
-        currentPeriodEnd: user.subscription.currentPeriodEnd,
-      }
+          status: user.subscription.status,
+          trialEndsAt: user.subscription.trialEndsAt,
+          currentPeriodEnd: user.subscription.currentPeriodEnd,
+        }
       : null;
 
     res.json({

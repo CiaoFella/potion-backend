@@ -96,18 +96,12 @@ export const predictCategory = async (doc) => {
     const isNew = currentTime - creationTime < 300000; // 300000ms = 5 minutes
 
     if (!isNew) {
-      console.log('⏰ Skipping categorization for old transaction:', {
-        transactionId: doc._id.toString(),
-        createdAt: doc.createdAt,
-        ageInMinutes: Math.round((currentTime - creationTime) / 60000),
-      });
       return;
     }
 
     const token = await getToken(doc.createdBy.toString());
 
     if (!token) {
-      console.log('No token found for transaction categorization');
       return;
     }
 
@@ -128,13 +122,6 @@ export const predictCategory = async (doc) => {
       transactionType: doc.type || 'Expense',
     };
 
-    console.log('🤖 Categorizing transaction with Perplexity AI:', {
-      transactionId: doc._id.toString(),
-      url,
-      merchant: requestBody.merchant,
-      amount: requestBody.amount,
-    });
-
     const response = await fetch(url, {
       method: 'POST',
       body: JSON.stringify(requestBody),
@@ -150,12 +137,6 @@ export const predictCategory = async (doc) => {
     }
 
     const result = await response.json();
-    console.log('🎯 Perplexity categorization result:', {
-      transactionId: doc._id.toString(),
-      success: result.success,
-      primaryCategory: result.data?.primaryCategory,
-      confidence: result.data?.confidence,
-    });
 
     if (!result.success || !result.data) {
       throw new Error('Invalid response from AI service');
@@ -174,30 +155,12 @@ export const predictCategory = async (doc) => {
         category: bestCategory.label,
         aiDescription: prediction.description,
       });
-
-      console.log('✅ Category predicted and saved:', {
-        transactionId: doc._id.toString(),
-        category: bestCategory.label,
-        confidence: bestCategory.confidence,
-        previousCategory: doc.category,
-      });
     } else {
-      // Clear AI Processing state and mark for manual review
       await Transaction.findByIdAndUpdate(doc._id.toString(), {
-        category: null, // Clear the "AI Processing..." state
+        category: null,
         aiDescription: null,
         action: 'CategoryAction',
       });
-
-      console.log(
-        '⚠️ Low confidence categorization, cleared processing state and marked for manual review:',
-        {
-          transactionId: doc._id.toString(),
-          bestCategory: bestCategory?.label,
-          confidence: bestCategory?.confidence,
-          previousCategory: doc.category,
-        },
-      );
     }
   } catch (error) {
     console.error('❌ Error predicting category with Perplexity:', {
@@ -211,11 +174,6 @@ export const predictCategory = async (doc) => {
         category: null, // Clear the "AI Processing..." state
         aiDescription: null,
         action: 'CategoryAction',
-      });
-
-      console.log('🔧 Cleared AI processing state due to error:', {
-        transactionId: doc._id?.toString(),
-        previousCategory: doc.category,
       });
     } catch (updateError) {
       console.error(
@@ -236,11 +194,6 @@ const actionHandler = async (doc, type = 'update') => {
         aiDescription:
           'AI is analyzing this transaction to suggest the best category.',
       });
-
-      console.log(
-        '🤖 Set AI Processing state for transaction:',
-        doc._id.toString(),
-      );
     } catch (error) {
       console.error('Failed to set AI processing state:', error);
     }
@@ -300,10 +253,6 @@ TransactionSchema.post('insertMany', async function (docs: any[]) {
                 aiDescription:
                   'AI is analyzing this transaction to suggest the best category.',
               });
-              console.log(
-                '🤖 Set AI Processing state for bulk transaction:',
-                d._id.toString(),
-              );
             } catch (error) {
               console.error(
                 'Failed to set AI processing state for bulk transaction:',

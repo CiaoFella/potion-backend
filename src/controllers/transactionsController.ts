@@ -16,7 +16,6 @@ export const transactionController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[createTransaction] Using userId:', userId);
 
       const transaction = new Transaction({
         ...req.body,
@@ -34,7 +33,6 @@ export const transactionController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[uploadCSV] Using userId:', userId);
 
       const results: any = [];
       const errors: any = [];
@@ -95,7 +93,6 @@ export const transactionController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[updateTransaction] Using userId:', userId);
 
       const updateData = { ...req.body };
       if (updateData.amount) {
@@ -132,7 +129,6 @@ export const transactionController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[deleteTransaction] Using userId:', userId);
 
       const transaction = await Transaction.findOneAndDelete({
         _id: req.params.id,
@@ -156,7 +152,6 @@ export const transactionController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[deleteTransactionsByBankAccount] Using userId:', userId);
 
       // Delete all transactions associated with the bank account for this user
       const result = await Transaction.deleteMany({
@@ -276,11 +271,6 @@ export const transactionController = {
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
 
-      console.log('[Transactions] X-User-ID header:', req.header('X-User-ID'));
-      console.log('[Transactions] Query with userId:', userId);
-      console.log('[Transactions] User object:', req.user);
-      console.log('[Transactions] Is accountant:', req.isAccountant);
-
       const query: any = { createdBy: userId };
 
       // Add filters
@@ -307,15 +297,12 @@ export const transactionController = {
         };
       }
 
-      console.log('[Transactions] Final query:', JSON.stringify(query));
-
       const transactions = await Transaction.find(query)
         .populate('invoice', 'invoiceNumber total status')
         .populate('project', 'name')
         .sort({ date: -1 })
         .limit(req.query.limit ? parseInt(req.query.limit) : 100);
 
-      console.log('[Transactions] Found:', transactions.length);
       res.json(transactions);
     } catch (error: any) {
       console.error('[Transactions] Error:', error.message);
@@ -328,7 +315,6 @@ export const transactionController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[getTransactionById] Using userId:', userId);
 
       const transaction = await Transaction.findOne({
         _id: req.params.id,

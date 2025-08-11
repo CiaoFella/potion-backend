@@ -43,7 +43,6 @@ export const plaidController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[exchangePublicToken] Using userId:', userId);
 
       const { public_token } = req.body;
       const plaidItem = await PlaidService.exchangePublicToken(
@@ -73,12 +72,8 @@ export const plaidController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[getPlaidItems] Using userId:', userId);
 
       const plaidItems = await PlaidItem.find({ userId: userId });
-      console.log(
-        `[getPlaidItems] Found ${plaidItems.length} items for user ${userId}`,
-      );
 
       // Get calculated balances for all accounts
       try {
@@ -126,7 +121,6 @@ export const plaidController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[syncTransactions] Using userId:', userId);
 
       // Verify the plaid item belongs to the user
       const plaidItem = await PlaidItem.findOne({
@@ -167,7 +161,6 @@ export const plaidController = {
       // Use X-User-ID header if available
       const userId =
         req.header('X-User-ID') || req.user?.userId || req.user?.id;
-      console.log('[deletePlaidItem] Using userId:', userId);
 
       const { plaidItemId } = req.params;
       // delete all transactions associated with the plaid item

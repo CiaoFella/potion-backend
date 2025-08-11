@@ -124,10 +124,6 @@ export class PlaidService {
         throw new Error('Plaid item not found');
       }
 
-      console.log(
-        `[PlaidService] Syncing transactions for plaidItem: ${plaidItemId}, userId: ${plaidItem.userId}`,
-      );
-
       let hasMore = true;
       let createdCount = 0;
       let cursor = plaidItem.transactionsCursor;
@@ -151,10 +147,6 @@ export class PlaidService {
           response.data.accounts.forEach((account) => {
             accountMap[account.account_id] = account;
           });
-
-          console.log(
-            `[PlaidService] Sync response - Added: ${added.length}, Modified: ${modified.length}, Removed: ${removed.length}`,
-          );
 
           // Process added transactions
           for (const plaidTransaction of added) {
@@ -227,17 +219,12 @@ export class PlaidService {
         }
       }
 
-      console.log(
-        `[PlaidService] Created ${createdCount} new transactions for userId: ${plaidItem.userId}`,
-      );
-
       // Update balances after transaction sync
       try {
         await BalanceCalculationService.updateBalancesAfterSync(
           plaidItem.userId.toString(),
           plaidItemId,
         );
-        console.log(`[PlaidService] Balance calculation completed after sync`);
       } catch (error) {
         console.error(
           `[PlaidService] Error updating balances after sync:`,
@@ -278,7 +265,6 @@ export class PlaidService {
   static async handleWebhook(webhookData: any) {
     try {
       const { webhook_type, webhook_code, item_id } = webhookData;
-      console.log(`Received webhook: ${webhookData}`);
 
       if (webhook_type === 'ITEM') {
         if (webhook_code === PlaidWebhookCode.userPermissionRevoked) {
