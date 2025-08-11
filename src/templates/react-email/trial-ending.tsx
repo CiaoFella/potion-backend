@@ -9,6 +9,8 @@ import {
   AIIcon,
   ReportsIcon,
   UsersIcon,
+  BarChartIcon,
+  DollarSignIcon,
 } from './_components/Icons';
 
 export interface TrialEndingProps {
