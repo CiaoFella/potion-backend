@@ -166,8 +166,8 @@ export class PlaidService {
               plaidTransactionId: plaidTransaction.transaction_id,
             };
 
-            await Transaction.create(transaction);
-            await predictCategory(transaction)
+            const newTransaction = await Transaction.create(transaction);
+            predictCategory(newTransaction)
             createdCount++;
           }
 
@@ -184,8 +184,6 @@ export class PlaidService {
                   plaidTransaction.personal_finance_category?.primary || '',
               },
             );
-
-            await predictCategory(plaidTransaction)
           }
 
           // Process removed transactions
