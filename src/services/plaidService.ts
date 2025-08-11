@@ -167,7 +167,7 @@ export class PlaidService {
             };
 
             await Transaction.create(transaction);
-            predictCategory(transaction)
+            await predictCategory(transaction)
             createdCount++;
           }
 
