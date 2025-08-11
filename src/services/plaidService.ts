@@ -184,6 +184,8 @@ export class PlaidService {
                   plaidTransaction.personal_finance_category?.primary || '',
               },
             );
+
+            await predictCategory(plaidTransaction)
           }
 
           // Process removed transactions

@@ -114,7 +114,7 @@ export const transactionController = {
         return res.status(404).json({ error: 'Transaction not found' });
       }
 
-      if (updateData.category || updateData?.description) {
+      if (updateData?.category || updateData?.description) {
         await predictCategory(transaction);
       }
 
