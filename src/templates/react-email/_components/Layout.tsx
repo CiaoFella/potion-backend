@@ -25,7 +25,7 @@ export const Layout: React.FC<LayoutProps> = ({
   children,
   preview = 'Email from Potion',
   companyName = 'Potion',
-  logoUrl = 'https://go-potion.com/logo.png',
+  logoUrl = 'https://my.potionapp.com/logo.svg',
   supportEmail = 'support@potionapp.com',
   showLogo = true,
 }) => {
@@ -39,10 +39,7 @@ export const Layout: React.FC<LayoutProps> = ({
           {/* Header */}
           <div style={layout.header}>
             {showLogo && (
-              <>
-                <Img src={logoUrl} alt={companyName} style={components.logo} />
-                <Heading style={components.brandName}>{companyName}</Heading>
-              </>
+              <Img src={logoUrl} alt={companyName} style={components.logo} />
             )}
             {!showLogo && (
               <Heading style={components.brandName}>{companyName}</Heading>

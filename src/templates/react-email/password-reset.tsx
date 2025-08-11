@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heading, Text, Button, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, statusBoxes } from './_styles/shared';
+import { components, statusBoxes, spacing } from './_styles/shared';
 import { InfoIcon, CheckIcon } from './_components/Icons';
 
 // TypeScript interface for props
@@ -49,62 +49,64 @@ const PasswordResetEmail: React.FC<PasswordResetProps> = ({
     <Layout
       preview={`Hi ${firstName}, reset your Potion password to regain access to your account.`}
     >
-      <Heading style={components.mainHeading}>Hi {firstName},</Heading>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
-      <Text style={components.text}>
-        We received a request to reset your password for your Potion account.
-      </Text>
+        <Text style={components.text}>
+          We received a request to reset your password for your Potion account.
+        </Text>
 
-      <div style={statusBoxes.info}>
-        <InfoIcon size={16} color="#2563eb" />
-        <strong>{context.description}</strong>
-      </div>
+        <div style={statusBoxes.info}>
+          <InfoIcon size={16} color="#2563eb" />
+          <strong>{context.description}</strong>
+        </div>
 
-      <Text style={components.text}>
-        Click the button below to create a new password:
-      </Text>
+        <Text style={components.text}>
+          Click the button below to create a new password:
+        </Text>
 
-      <Section style={components.buttonSection}>
-        <Button href={resetUrl} style={components.button}>
-          Reset My Password
-        </Button>
-      </Section>
+        <Section style={components.buttonSection}>
+          <Button href={resetUrl} style={components.button}>
+            Reset My Password
+          </Button>
+        </Section>
 
-      <Text style={components.smallText}>
-        <strong>This link expires in {tokenExpiry}</strong> - please reset your
-        password soon to avoid having to request a new link.
-      </Text>
+        <Text style={components.smallText}>
+          <strong>This link expires in {tokenExpiry}</strong> - please reset
+          your password soon to avoid having to request a new link.
+        </Text>
 
-      <Text style={components.text}>{context.accessDescription}</Text>
+        <Text style={components.text}>{context.accessDescription}</Text>
 
-      <div
-        style={{
-          backgroundColor: '#f9fafb',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '16px',
-          margin: '24px 0',
-        }}
-      >
-        <Text
+        <div
           style={{
-            ...components.smallText,
-            margin: '0 0 8px 0',
-            fontWeight: '600',
+            backgroundColor: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            padding: '16px',
+            margin: '24px 0',
           }}
         >
-          Security Notice:
-        </Text>
-        <Text style={{ ...components.smallText, margin: '0' }}>
-          If you didn't request this password reset, you can safely ignore this
-          email. Your account remains secure.
-        </Text>
-      </div>
+          <Text
+            style={{
+              ...components.smallText,
+              margin: '0 0 8px 0',
+              fontWeight: '600',
+            }}
+          >
+            Security Notice:
+          </Text>
+          <Text style={{ ...components.smallText, margin: '0' }}>
+            If you didn't request this password reset, you can safely ignore
+            this email. Your account remains secure.
+          </Text>
+        </div>
 
-      <Text style={components.smallText}>
-        <strong>Need help?</strong> Just reply to this email and our support
-        team will assist you.
-      </Text>
+        <Text style={components.smallText}>
+          <strong>Need help?</strong> Just reply to this email and our support
+          team will assist you.
+        </Text>
+      </Section>
     </Layout>
   );
 };

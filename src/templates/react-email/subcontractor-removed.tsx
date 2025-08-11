@@ -25,24 +25,9 @@ const SubcontractorRemovedEmail: React.FC<SubcontractorRemovedProps> = ({
     <Layout
       preview={`Hi ${subcontractorName}, your access to the ${projectName} project has been removed.`}
     >
-      {/* Header Section */}
-      <Section
-        style={{
-          textAlign: 'center',
-          padding: `${spacing.xl} 0 ${spacing.lg} 0`,
-        }}
-      >
-        <Heading style={components.brandName}>POTION</Heading>
-        <Text style={{ ...components.smallText, margin: '4px 0 0 0' }}>
-          Project Management Platform
-        </Text>
-      </Section>
-
       {/* Main Content */}
       <Section style={{ padding: `0 ${spacing.xl}` }}>
-        <Text style={{ ...components.text, fontSize: '18px' }}>
-          Hello {subcontractorName},
-        </Text>
+        <Text style={{ fontSize: '18px' }}>Hello {subcontractorName},</Text>
 
         <div style={statusBoxes.info}>
           <InfoIcon size={16} color="#2563eb" />

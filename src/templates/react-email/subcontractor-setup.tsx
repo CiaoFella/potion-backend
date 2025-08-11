@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heading, Text, Button, Section, Hr } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, spacing, statusBoxes, layout } from './_styles/shared';
+import { components, spacing, statusBoxes } from './_styles/shared';
 import {
   SparklesIcon,
   FileTextIcon,
@@ -31,8 +31,8 @@ const SubcontractorSetupEmail: React.FC<SubcontractorSetupProps> = ({
       preview={`Hi ${subcontractorName}, welcome to Potion! Set up your account to get started.`}
     >
       {/* Header */}
-      <Section style={layout.content}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <div style={{ marginBottom: '2rem' }}>
           <SparklesIcon size={48} color="#1EC64C" />
           <Heading style={components.mainHeading}>Welcome to Potion!</Heading>
           <Text style={components.textLarge}>
@@ -45,7 +45,7 @@ const SubcontractorSetupEmail: React.FC<SubcontractorSetupProps> = ({
       <Hr style={components.divider} />
 
       {/* Main Content */}
-      <Section style={layout.content}>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Text style={components.text}>Hi {subcontractorName},</Text>
 
         <Text style={components.text}>
@@ -55,7 +55,7 @@ const SubcontractorSetupEmail: React.FC<SubcontractorSetupProps> = ({
         </Text>
 
         {/* Setup Button */}
-        <div style={{ textAlign: 'center', margin: '2rem 0' }}>
+        <div style={{ margin: '2rem 0' }}>
           <Button href={setupUrl} style={components.button}>
             Set Up My Account
           </Button>
@@ -92,7 +92,7 @@ const SubcontractorSetupEmail: React.FC<SubcontractorSetupProps> = ({
       <Hr style={components.divider} />
 
       {/* Security Notice */}
-      <Section style={layout.content}>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
         <div style={statusBoxes.info}>
           <Text style={{ ...components.smallText, margin: 0 }}>
             <SettingsIcon size={16} color="#2563eb" />
@@ -104,7 +104,7 @@ const SubcontractorSetupEmail: React.FC<SubcontractorSetupProps> = ({
       </Section>
 
       {/* Footer */}
-      <Section style={layout.content}>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Text style={components.smallText}>
           If you didn't expect this invitation or have any questions, please
           contact {senderName} directly.

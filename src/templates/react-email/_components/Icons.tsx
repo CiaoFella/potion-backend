@@ -14,6 +14,12 @@ import {
   FileText,
   Settings,
   Star,
+  CreditCard,
+  Brain,
+  TrendingUp,
+  PieChart,
+  Activity,
+  Zap,
 } from 'lucide-react';
 
 // Base icon props
@@ -156,6 +162,61 @@ export const StarIcon: React.FC<IconProps> = ({
 }) => (
   <span style={iconWrapperStyle}>
     <Star size={size} color={color} />
+  </span>
+);
+
+// MVP Feature Icons
+export const BankIcon: React.FC<IconProps> = ({
+  size = 16,
+  color = '#1f2937',
+}) => (
+  <span style={iconWrapperStyle}>
+    <CreditCard size={size} color={color} />
+  </span>
+);
+
+export const AIIcon: React.FC<IconProps> = ({
+  size = 16,
+  color = '#1f2937',
+}) => (
+  <span style={iconWrapperStyle}>
+    <Brain size={size} color={color} />
+  </span>
+);
+
+export const ReportsIcon: React.FC<IconProps> = ({
+  size = 16,
+  color = '#1f2937',
+}) => (
+  <span style={iconWrapperStyle}>
+    <TrendingUp size={size} color={color} />
+  </span>
+);
+
+export const ProfitLossIcon: React.FC<IconProps> = ({
+  size = 16,
+  color = '#1f2937',
+}) => (
+  <span style={iconWrapperStyle}>
+    <PieChart size={size} color={color} />
+  </span>
+);
+
+export const CashFlowIcon: React.FC<IconProps> = ({
+  size = 16,
+  color = '#1f2937',
+}) => (
+  <span style={iconWrapperStyle}>
+    <Activity size={size} color={color} />
+  </span>
+);
+
+export const AutomationIcon: React.FC<IconProps> = ({
+  size = 16,
+  color = '#1f2937',
+}) => (
+  <span style={iconWrapperStyle}>
+    <Zap size={size} color={color} />
   </span>
 );
 

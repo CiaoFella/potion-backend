@@ -21,19 +21,6 @@ const AccountantRemovedEmail: React.FC<AccountantRemovedProps> = ({
     <Layout
       preview={`Hi ${accountantName}, your access to ${clientName}'s financial records has been removed.`}
     >
-      {/* Header Section */}
-      <Section
-        style={{
-          textAlign: 'center',
-          padding: `${spacing.xl} 0 ${spacing.lg} 0`,
-        }}
-      >
-        <Heading style={components.brandName}>POTION</Heading>
-        <Text style={{ ...components.smallText, margin: '4px 0 0 0' }}>
-          Professional Accounting Platform
-        </Text>
-      </Section>
-
       {/* Main Content */}
       <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Text style={{ ...components.text, fontSize: '18px' }}>

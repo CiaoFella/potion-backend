@@ -84,26 +84,24 @@ export const layout = {
 
   header: {
     padding: `${spacing.xl} ${spacing.xl} ${spacing.lg} ${spacing.xl}`,
-    textAlign: 'center' as const,
-    borderBottom: `1px solid ${colors.borderLight}`,
+    textAlign: 'left' as const,
   },
 
   content: {
-    padding: `${spacing.xl} ${spacing.xl}`,
+    padding: 0,
   },
 
   footer: {
     backgroundColor: colors.backgroundLight,
     padding: `${spacing.lg} ${spacing.xl}`,
-    borderTop: `1px solid ${colors.borderLight}`,
   },
 } as const;
 
 // Component Styles - Modern and clean
 export const components = {
   logo: {
-    height: '28px',
-    marginBottom: spacing.sm,
+    height: '32px',
+    marginBottom: spacing.md,
     display: 'block',
   },
 
@@ -157,7 +155,7 @@ export const components = {
     fontSize: typography.small,
     color: colors.textMuted,
     margin: `0 0 ${spacing.sm} 0`,
-    textAlign: 'center' as const,
+    textAlign: 'left' as const,
   },
 
   link: {

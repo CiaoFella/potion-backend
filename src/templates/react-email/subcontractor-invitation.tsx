@@ -76,19 +76,6 @@ const SubcontractorInvitationEmail: React.FC<SubcontractorInvitationProps> = ({
 
   return (
     <Layout>
-      {/* Header Section */}
-      <Section
-        style={{
-          textAlign: 'center',
-          padding: `${spacing.xl} 0 ${spacing.lg} 0`,
-        }}
-      >
-        <Heading style={components.brandName}>POTION</Heading>
-        <Text style={{ ...components.smallText, margin: '4px 0 0 0' }}>
-          Project Management Platform
-        </Text>
-      </Section>
-
       {/* Main Content */}
       <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Text style={{ ...components.text, fontSize: '18px' }}>
@@ -158,7 +145,6 @@ const SubcontractorInvitationEmail: React.FC<SubcontractorInvitationProps> = ({
       <Section
         style={{
           ...components.buttonSection,
-          textAlign: 'center',
           padding: `${spacing.xl} ${spacing.xl} 0 ${spacing.xl}`,
         }}
       >

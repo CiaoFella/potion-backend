@@ -1,14 +1,12 @@
 import React from 'react';
-import { Heading, Text } from '@react-email/components';
+import { Heading, Text, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, statusBoxes } from './_styles/shared';
+import { components, statusBoxes, spacing } from './_styles/shared';
 import {
   SparklesIcon,
-  CheckIcon,
-  SettingsIcon,
-  BarChartIcon,
-  FileTextIcon,
-  DollarSignIcon,
+  BankIcon,
+  AIIcon,
+  ReportsIcon,
   UsersIcon,
 } from './_components/Icons';
 
@@ -27,37 +25,36 @@ const AsyncPaymentSuccessEmail: React.FC<AsyncPaymentSuccessProps> = ({
     <Layout
       preview={`Payment confirmed ${firstName}! Your ${trialDays}-day Potion trial is now active.`}
     >
-      <Heading style={components.mainHeading}>
-        Payment confirmed, {firstName}!
-      </Heading>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <Heading style={components.mainHeading}>
+          You're all set, {firstName}! 🎉
+        </Heading>
 
-      <div style={statusBoxes.success}>
-        <SparklesIcon size={16} color="#059669" />
-        <strong>Great news!</strong> Your payment has been processed
-        successfully.
-      </div>
+        <div style={statusBoxes.success}>
+          <SparklesIcon size={16} color="#059669" />
+          <strong>Payment confirmed!</strong> Your {trialDays}-day trial is now
+          active.
+        </div>
 
-      <Text style={components.text}>
-        Your {trialDays}-day free trial is now active and ready to use.
-      </Text>
+        <Text style={components.text}>
+          Time to get your finances organized. If you haven't set up your
+          password yet, check your email for the setup link.
+        </Text>
 
-      <Text style={components.text}>
-        If you haven't set up your password yet, check your email for setup
-        instructions. Once that's done, you'll have full access to:
-      </Text>
+        <Text style={components.text}>Here's what you can do right away:</Text>
 
-      <TrialFeatures />
+        <TrialFeatures />
 
-      <Text style={components.text}>
-        <strong>Ready to get started?</strong> Log in to your dashboard and
-        start exploring all the features that will help automate your business
-        operations.
-      </Text>
+        <Text style={components.text}>
+          <strong>Ready to dive in?</strong> Log in and connect your bank
+          account - it takes less than 2 minutes and you'll see all your
+          transactions categorized automatically.
+        </Text>
 
-      <Text style={components.smallText}>
-        Questions about getting started? Just reply to this email - our team is
-        here to help.
-      </Text>
+        <Text style={components.smallText}>
+          Questions? Just reply to this email and we'll help you out.
+        </Text>
+      </Section>
     </Layout>
   );
 };
@@ -65,20 +62,20 @@ const AsyncPaymentSuccessEmail: React.FC<AsyncPaymentSuccessProps> = ({
 const TrialFeatures: React.FC = () => {
   const features = [
     {
-      icon: <SettingsIcon size={14} color="#059669" />,
-      text: 'AI-powered business assistant and automation',
+      icon: <BankIcon size={14} color="#059669" />,
+      text: 'Connect your bank and automatically categorize transactions',
     },
     {
-      icon: <FileTextIcon size={14} color="#059669" />,
-      text: 'Contract creation and proposal management',
+      icon: <AIIcon size={14} color="#059669" />,
+      text: "Ask AI about any transaction you don't recognize",
     },
     {
-      icon: <DollarSignIcon size={14} color="#059669" />,
-      text: 'Automated invoicing and payment processing',
+      icon: <ReportsIcon size={14} color="#059669" />,
+      text: 'Generate profit & loss, cash flow, and balance sheet reports',
     },
     {
-      icon: <BarChartIcon size={14} color="#059669" />,
-      text: 'Financial analytics and detailed reporting',
+      icon: <UsersIcon size={14} color="#059669" />,
+      text: 'Give your accountant secure access to all your financial data',
     },
   ];
 

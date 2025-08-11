@@ -1,15 +1,14 @@
 import React from 'react';
 import { Heading, Text, Button, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, statusBoxes, colors } from './_styles/shared';
+import { components, statusBoxes, colors, spacing } from './_styles/shared';
 import {
   ClockIcon,
   CheckIcon,
-  BarChartIcon,
-  DollarSignIcon,
+  BankIcon,
+  AIIcon,
+  ReportsIcon,
   UsersIcon,
-  SettingsIcon,
-  StarIcon,
 } from './_components/Icons';
 
 export interface TrialEndingProps {
@@ -33,7 +32,7 @@ const TrialEndingEmail: React.FC<TrialEndingProps> = ({
   daysRemaining,
   trialDays = 7,
   monthlyPrice = 29,
-  billingUrl = 'https://app.potionapp.com/billing',
+  billingUrl = 'https://my.potionapp.com/billing',
   usageStats = false,
   projectsCreated,
   invoicesSent,
@@ -44,24 +43,26 @@ const TrialEndingEmail: React.FC<TrialEndingProps> = ({
     <Layout
       preview={`Hi ${firstName}, your ${trialDays}-day trial converts to paid in ${daysRemaining} days.`}
     >
-      <Heading style={components.mainHeading}>Hi {firstName},</Heading>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <Heading style={components.mainHeading}>Hey {firstName} 👋</Heading>
 
-      <Text style={components.text}>
-        You've been exploring Potion for {trialDays - daysRemaining} days, and
-        we hope you're loving the platform as much as we love building it.
-      </Text>
+        <Text style={components.text}>
+          Hope you're loving how easy Potion makes managing your finances!
+          You've been trying it out for {trialDays - daysRemaining} days now.
+        </Text>
 
-      <div style={statusBoxes.info}>
-        <ClockIcon size={16} color="#2563eb" />
-        Your trial converts to a paid subscription in {daysRemaining}{' '}
-        {daysRemaining === 1 ? 'day' : 'days'}
-      </div>
+        <div style={statusBoxes.info}>
+          <ClockIcon size={16} color="#2563eb" />
+          Your trial automatically converts to paid in {daysRemaining}{' '}
+          {daysRemaining === 1 ? 'day' : 'days'}
+        </div>
 
-      <Text style={components.text}>
-        <strong>Here's what to expect:</strong> Your account will seamlessly
-        continue at ${monthlyPrice}/month with all features and data intact. No
-        interruptions, no setup required.
-      </Text>
+        <Text style={components.text}>
+          <strong>Good news:</strong> Nothing changes except you keep using
+          Potion for just ${monthlyPrice}/month. All your data stays exactly
+          where it is.
+        </Text>
+      </Section>
 
       {usageStats &&
         (projectsCreated || invoicesSent || tasksCompleted || clientsAdded) && (
@@ -126,29 +127,32 @@ const TrialEndingEmail: React.FC<TrialEndingProps> = ({
           </div>
         )}
 
-      <Text style={components.text}>
-        With your paid subscription, you'll continue enjoying:
-      </Text>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <Text style={components.text}>
+          You'll keep getting all the features that make your financial life
+          easier:
+        </Text>
 
-      <SubscriptionFeatures />
+        <SubscriptionFeatures />
 
-      <Section style={components.buttonSection}>
-        <Button href={billingUrl} style={components.button}>
-          Manage Billing - ${monthlyPrice}/month
-        </Button>
+        <Section style={components.buttonSection}>
+          <Button href={billingUrl} style={components.button}>
+            Manage Billing - ${monthlyPrice}/month
+          </Button>
+        </Section>
+
+        <Text style={components.smallText}>
+          Want to cancel before renewal?{' '}
+          <a href={billingUrl} style={components.link}>
+            Visit your billing settings
+          </a>{' '}
+          or{' '}
+          <a href="mailto:support@potionapp.com" style={components.link}>
+            contact support
+          </a>
+          .
+        </Text>
       </Section>
-
-      <Text style={components.smallText}>
-        Want to cancel before renewal?{' '}
-        <a href={billingUrl} style={components.link}>
-          Visit your billing settings
-        </a>{' '}
-        or{' '}
-        <a href="mailto:support@potionapp.com" style={components.link}>
-          contact support
-        </a>
-        .
-      </Text>
     </Layout>
   );
 };
@@ -156,24 +160,24 @@ const TrialEndingEmail: React.FC<TrialEndingProps> = ({
 const SubscriptionFeatures: React.FC = () => {
   const features = [
     {
+      icon: <BankIcon size={14} color="#1EC64C" />,
+      text: 'Unlimited bank connections and transaction syncing',
+    },
+    {
+      icon: <AIIcon size={14} color="#1EC64C" />,
+      text: 'Ask AI about any transaction, anytime',
+    },
+    {
+      icon: <ReportsIcon size={14} color="#1EC64C" />,
+      text: 'Generate all financial reports instantly',
+    },
+    {
+      icon: <UsersIcon size={14} color="#1EC64C" />,
+      text: 'Share access with your accountant securely',
+    },
+    {
       icon: <CheckIcon size={14} color="#1EC64C" />,
-      text: 'All your projects and data remain safe',
-    },
-    {
-      icon: <SettingsIcon size={14} color="#1EC64C" />,
-      text: 'Unlimited AI assistant usage',
-    },
-    {
-      icon: <BarChartIcon size={14} color="#1EC64C" />,
-      text: 'Advanced reporting and analytics',
-    },
-    {
-      icon: <StarIcon size={14} color="#1EC64C" />,
-      text: 'Priority customer support',
-    },
-    {
-      icon: <SettingsIcon size={14} color="#1EC64C" />,
-      text: 'Full integration capabilities',
+      text: 'All your financial data stays organized automatically',
     },
   ];
 

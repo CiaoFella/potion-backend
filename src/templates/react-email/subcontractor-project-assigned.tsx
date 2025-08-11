@@ -29,25 +29,12 @@ const SubcontractorProjectAssignedEmail: React.FC<
   clientName,
   senderName = 'Project Manager',
   projectDescription,
-  loginUrl = 'https://app.potionapp.com/login',
+  loginUrl = 'https://my.potionapp.com/login',
 }) => {
   return (
     <Layout
       preview={`Hi ${subcontractorName}, you've been assigned to the ${projectName} project.`}
     >
-      {/* Header Section */}
-      <Section
-        style={{
-          textAlign: 'center',
-          padding: `${spacing.xl} 0 ${spacing.lg} 0`,
-        }}
-      >
-        <Heading style={components.brandName}>POTION</Heading>
-        <Text style={{ ...components.smallText, margin: '4px 0 0 0' }}>
-          Project Management Platform
-        </Text>
-      </Section>
-
       {/* Main Content */}
       <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Text style={{ ...components.text, fontSize: '18px' }}>
@@ -102,7 +89,6 @@ const SubcontractorProjectAssignedEmail: React.FC<
       <Section
         style={{
           ...components.buttonSection,
-          textAlign: 'center',
           padding: `${spacing.xl} ${spacing.xl} 0 ${spacing.xl}`,
         }}
       >
@@ -114,7 +100,6 @@ const SubcontractorProjectAssignedEmail: React.FC<
       <Text
         style={{
           ...components.smallText,
-          textAlign: 'center',
           padding: `0 ${spacing.xl}`,
         }}
       >

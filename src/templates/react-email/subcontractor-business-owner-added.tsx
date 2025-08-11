@@ -28,7 +28,7 @@ const SubcontractorBusinessOwnerAddedEmail: React.FC<
   businessOwnerBusinessName,
   projectsCount,
   projectNames = [],
-  loginUrl = 'https://app.potionapp.com/login',
+  loginUrl = 'https://my.potionapp.com/login',
 }) => {
   return (
     <Layout

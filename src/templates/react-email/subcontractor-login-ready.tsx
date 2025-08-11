@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heading, Text, Button, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components, statusBoxes } from './_styles/shared';
+import { components, statusBoxes, spacing } from './_styles/shared';
 import {
   CheckCircleIcon,
   SettingsIcon,
@@ -21,7 +21,7 @@ export const subject = 'Your Potion account is ready - You can now login!';
 
 const SubcontractorLoginReadyEmail: React.FC<SubcontractorLoginReadyProps> = ({
   firstName,
-  loginUrl = 'https://app.potionapp.com/login',
+  loginUrl = 'https://my.potionapp.com/login',
   projectName,
   clientName,
 }) => {
@@ -29,51 +29,53 @@ const SubcontractorLoginReadyEmail: React.FC<SubcontractorLoginReadyProps> = ({
     <Layout
       preview={`Hi ${firstName}, your password has been set successfully! You can now login to your Potion account.`}
     >
-      <Heading style={components.mainHeading}>Hi {firstName},</Heading>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
-      <div style={statusBoxes.success}>
-        <CheckCircleIcon size={16} color="#059669" />
-        <strong>Great news!</strong> Your password has been set successfully.
-      </div>
+        <div style={statusBoxes.success}>
+          <CheckCircleIcon size={16} color="#059669" />
+          <strong>Great news!</strong> Your password has been set successfully.
+        </div>
 
-      <Text style={components.text}>
-        Your Potion account is now ready to use! You can login and access your
-        project dashboard anytime.
-      </Text>
-
-      {projectName && (
         <Text style={components.text}>
-          <strong>Project:</strong> {projectName}
-          {clientName && (
-            <>
-              <br />
-              <strong>Client:</strong> {clientName}
-            </>
-          )}
+          Your Potion account is now ready to use! You can login and access your
+          project dashboard anytime.
         </Text>
-      )}
 
-      <Text style={components.text}>
-        <strong>What you can do with your account:</strong>
-      </Text>
+        {projectName && (
+          <Text style={components.text}>
+            <strong>Project:</strong> {projectName}
+            {clientName && (
+              <>
+                <br />
+                <strong>Client:</strong> {clientName}
+              </>
+            )}
+          </Text>
+        )}
 
-      <LoginReadyFeatures />
+        <Text style={components.text}>
+          <strong>What you can do with your account:</strong>
+        </Text>
 
-      <Section style={components.buttonSection}>
-        <Button href={loginUrl} style={components.button}>
-          Login to Your Account
-        </Button>
+        <LoginReadyFeatures />
+
+        <Section style={components.buttonSection}>
+          <Button href={loginUrl} style={components.button}>
+            Login to Your Account
+          </Button>
+        </Section>
+
+        <Text style={components.smallText}>
+          <strong>Need help?</strong> Just reply to this email - our support team
+          is here to assist you.
+        </Text>
+
+        <div style={statusBoxes.info}>
+          <InfoIcon size={16} color="#2563eb" />
+          Bookmark your login page: {loginUrl}
+        </div>
       </Section>
-
-      <Text style={components.smallText}>
-        <strong>Need help?</strong> Just reply to this email - our support team
-        is here to assist you.
-      </Text>
-
-      <div style={statusBoxes.info}>
-        <InfoIcon size={16} color="#2563eb" />
-        Bookmark your login page: {loginUrl}
-      </div>
     </Layout>
   );
 };

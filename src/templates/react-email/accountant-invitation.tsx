@@ -3,11 +3,10 @@ import { Heading, Text, Button, Section, Hr } from '@react-email/components';
 import { Layout } from './_components/Layout';
 import { components, spacing } from './_styles/shared';
 import {
-  BarChartIcon,
-  DollarSignIcon,
+  ReportsIcon,
+  AIIcon,
   UsersIcon,
-  FileTextIcon,
-  SettingsIcon,
+  CheckCircleIcon,
 } from './_components/Icons';
 
 export interface AccountantInvitationProps {
@@ -28,28 +27,28 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
 }) => {
   const features = [
     {
-      icon: <BarChartIcon size={20} />,
-      title: 'Real-Time Financial Insights',
+      icon: <ReportsIcon size={20} />,
+      title: 'Financial Reports Ready',
       description:
-        'Live cash flow analysis, trend reports, and financial health dashboards',
+        'Profit & loss, cash flow, and balance sheet reports generated instantly',
+    },
+    {
+      icon: <CheckCircleIcon size={20} />,
+      title: 'Auto-Categorized Transactions',
+      description:
+        'All transactions are automatically categorized and reconciled',
+    },
+    {
+      icon: <AIIcon size={20} />,
+      title: 'AI Transaction Insights',
+      description:
+        'Get context on any transaction with AI-powered explanations',
     },
     {
       icon: <UsersIcon size={20} />,
-      title: 'Centralized Client Portal',
+      title: 'Secure Client Access',
       description:
-        'Manage multiple clients seamlessly with role-based access controls',
-    },
-    {
-      icon: <FileTextIcon size={20} />,
-      title: 'Automated Report Generation',
-      description:
-        'P&L statements, balance sheets, and tax reports generated instantly',
-    },
-    {
-      icon: <SettingsIcon size={20} />,
-      title: 'Professional-Grade Security',
-      description:
-        'Bank-level encryption with audit trails for compliance requirements',
+        'Bank-level security with role-based permissions for accountants',
     },
   ];
 
@@ -77,34 +76,22 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
 
   return (
     <Layout>
-      {/* Header Section */}
-      <Section
-        style={{
-          textAlign: 'center',
-          padding: `${spacing.xl} 0 ${spacing.lg} 0`,
-        }}
-      >
-        <Heading style={components.brandName}>POTION</Heading>
-        <Text style={{ ...components.smallText, margin: '4px 0 0 0' }}>
-          Professional Accounting Platform
-        </Text>
-      </Section>
-
       {/* Main Content */}
       <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Text style={{ ...components.text, fontSize: '18px' }}>
-          Hello {accountantName},
+          Hey {accountantName},
         </Text>
 
         <Text style={components.text}>
-          <strong>{clientName}</strong> has granted you professional access to
-          their financial records through Potion's secure accounting platform.
+          <strong>{clientName}</strong> has invited you to access their
+          financial data on Potion. Everything you need is organized and ready
+          to go.
         </Text>
 
         <Text style={components.text}>
-          Beyond accessing your client's books, Potion offers a comprehensive
-          suite of professional tools designed specifically for accounting firms
-          and practitioners like yourself.
+          No more chasing down spreadsheets or waiting for bank statements.
+          You'll have real-time access to all their financial data,
+          automatically categorized and reconciled.
         </Text>
 
         {/* Personal Note Section */}
@@ -139,7 +126,7 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
       {/* Features Section */}
       <Section style={{ padding: `0 ${spacing.xl}` }}>
         <Heading style={components.sectionHeading}>
-          What's Available for You
+          Here's what you'll have access to:
         </Heading>
 
         {features.map((feature, index) => (
@@ -157,7 +144,6 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
       <Section
         style={{
           ...components.buttonSection,
-          textAlign: 'center',
           padding: `${spacing.xl} ${spacing.xl} 0 ${spacing.xl}`,
         }}
       >
@@ -173,16 +159,12 @@ const AccountantInvitationEmail: React.FC<AccountantInvitationProps> = ({
         style={{ padding: `0 ${spacing.xl} ${spacing.xl} ${spacing.xl}` }}
       >
         <Text style={components.footerText}>
-          Join thousands of accounting professionals who trust Potion to
-          streamline their practice. Accept your invitation to explore our
-          professional-grade platform.
+          Everything is automatically synced and up-to-date, so you can focus on
+          what matters most - helping your client make better financial
+          decisions.
         </Text>
         <Text style={components.footerText}>
-          Questions about setup or features? Our accounting specialist team is
-          available at{' '}
-          <a href="mailto:support@potionapp.com" style={components.link}>
-            support@potionapp.com
-          </a>
+          Questions? Just reply to this email and we'll help you get set up.
         </Text>
       </Section>
     </Layout>

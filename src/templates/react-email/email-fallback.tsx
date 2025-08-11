@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heading, Text, Button, Section } from '@react-email/components';
 import { Layout } from './_components/Layout';
-import { components } from './_styles/shared';
+import { components, spacing } from './_styles/shared';
 
 // TypeScript interface for props
 export interface EmailFallbackProps {
@@ -31,35 +31,37 @@ const EmailFallbackTemplate: React.FC<EmailFallbackProps> = ({
 }) => {
   return (
     <Layout preview={`Hi ${firstName}, ${emailSubject}`}>
-      <Heading style={components.mainHeading}>Hi {firstName},</Heading>
+      <Section style={{ padding: `0 ${spacing.xl}` }}>
+        <Heading style={components.mainHeading}>Hi {firstName},</Heading>
 
-      {messageTitle && (
-        <Heading style={components.sectionHeading}>{messageTitle}</Heading>
-      )}
+        {messageTitle && (
+          <Heading style={components.sectionHeading}>{messageTitle}</Heading>
+        )}
 
-      {messageBody && <Text style={components.text}>{messageBody}</Text>}
+        {messageBody && <Text style={components.text}>{messageBody}</Text>}
 
-      {actionUrl && (
-        <Section style={components.buttonSection}>
-          <Button href={actionUrl} style={components.button}>
-            {actionText}
-          </Button>
-        </Section>
-      )}
+        {actionUrl && (
+          <Section style={components.buttonSection}>
+            <Button href={actionUrl} style={components.button}>
+              {actionText}
+            </Button>
+          </Section>
+        )}
 
-      {tokenExpiry && (
+        {tokenExpiry && (
+          <Text style={components.smallText}>
+            <strong>This link expires in {tokenExpiry}</strong> - please take
+            action soon to avoid delays.
+          </Text>
+        )}
+
+        {additionalInfo && <Text style={components.text}>{additionalInfo}</Text>}
+
         <Text style={components.smallText}>
-          <strong>This link expires in {tokenExpiry}</strong> - please take
-          action soon to avoid delays.
+          Questions? Just reply to this email and our support team will help you
+          out.
         </Text>
-      )}
-
-      {additionalInfo && <Text style={components.text}>{additionalInfo}</Text>}
-
-      <Text style={components.smallText}>
-        Questions? Just reply to this email and our support team will help you
-        out.
-      </Text>
+      </Section>
     </Layout>
   );
 };
