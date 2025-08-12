@@ -89,13 +89,8 @@ TransactionSchema.index({ plaidTransactionId: 1 });
 
 export const predictCategory = async (doc) => {
   try {
-    // Check if the transaction was created within the last 5 minutes
-    // This accounts for bulk imports and processing delays
-    const creationTime = doc.createdAt.getTime();
-    const currentTime = Date.now();
-    const isNew = currentTime - creationTime < 300000; // 300000ms = 5 minutes
 
-    if (!isNew) {
+    if (!doc?.category || doc.category !== aiCategoryPlaceholder) {
       return;
     }
 
@@ -184,13 +179,15 @@ export const predictCategory = async (doc) => {
   }
 };
 
+export const aiCategoryPlaceholder = "AI Processing...";
+
 const actionHandler = async (doc, type = 'update') => {
   // For new transactions, set initial AI processing state
   if (type === 'save' && !doc.category) {
     try {
       // Set initial AI processing state
       await Transaction.findByIdAndUpdate(doc._id, {
-        category: 'AI Processing...',
+        category: aiCategoryPlaceholder,
         aiDescription:
           'AI is analyzing this transaction to suggest the best category.',
       });
@@ -249,7 +246,7 @@ TransactionSchema.post('insertMany', async function (docs: any[]) {
           transactionsNeedingAI.map(async (d) => {
             try {
               await Transaction.findByIdAndUpdate(d._id, {
-                category: 'AI Processing...',
+                category: aiCategoryPlaceholder,
                 aiDescription:
                   'AI is analyzing this transaction to suggest the best category.',
               });

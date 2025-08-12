@@ -160,8 +160,7 @@ export class PlaidService {
               account: JSON.stringify(accountMap[plaidTransaction.account_id]),
               counterparty:
                 plaidTransaction.merchant_name || plaidTransaction.name,
-              category:
-                plaidTransaction.personal_finance_category?.primary || '',
+              category: '',
               createdBy: plaidItem.userId,
               plaidTransactionId: plaidTransaction.transaction_id,
             };
@@ -180,8 +179,7 @@ export class PlaidService {
                 description: plaidTransaction.name,
                 counterparty:
                   plaidTransaction.merchant_name || plaidTransaction.name,
-                category:
-                  plaidTransaction.personal_finance_category?.primary || '',
+                category: '',
               },
             );
 
