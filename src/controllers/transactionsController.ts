@@ -115,7 +115,7 @@ export const transactionController = {
       }
 
       if (updateData?.description) {
-        await predictCategory(transaction);
+        predictCategory(transaction);
       }
 
       res.json(transaction);
