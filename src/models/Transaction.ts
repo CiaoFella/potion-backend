@@ -90,7 +90,7 @@ TransactionSchema.index({ plaidTransactionId: 1 });
 export const predictCategory = async (doc) => {
   try {
 
-    if (!doc?.category || doc.category !== aiCategoryPlaceholder) {
+    if (doc?.category && doc.category !== aiCategoryPlaceholder) {
       return;
     }
 
