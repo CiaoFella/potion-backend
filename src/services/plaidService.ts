@@ -166,7 +166,7 @@ export class PlaidService {
             };
 
             const newTransaction = await Transaction.create(transaction);
-            await predictCategory(newTransaction)
+            predictCategory(newTransaction)
             createdCount++;
           }
 
@@ -183,7 +183,7 @@ export class PlaidService {
               },
             );
 
-            await predictCategory(updatedTransaction);
+            predictCategory(updatedTransaction);
           }
 
           // Process removed transactions
