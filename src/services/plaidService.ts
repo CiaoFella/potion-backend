@@ -11,6 +11,7 @@ import { Types } from 'mongoose';
 import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
 import { BalanceCalculationService } from './balanceCalculationService';
 import { use } from 'react';
+import { agenda } from '../queue/agenda';
 
 enum PlaidWebhookCode {
   'userPermissionRevoked' = 'USER_PERMISSION_REVOKED',
@@ -169,10 +170,7 @@ export class PlaidService {
               plaidTransactionId: plaidTransaction.transaction_id,
             };
 
-            const newTransaction = await Transaction.create(transaction);
-            setTimeout(() => {
-              predictCategory(newTransaction);
-            }, 200 * index);
+            agenda.create('add Transaction', transaction);
             createdCount++;
           }
 

@@ -65,6 +65,7 @@ import {
   requireRole,
   requirePermission,
 } from './middleware/rbac';
+import { agenda } from './queue/agenda';
 
 dotenv.config();
 
@@ -427,5 +428,12 @@ server.listen(PORT, () => {
     updateEmptyCRMActions();
   }
 });
+
+
+(async function () {
+  // IIFE to give access to async/await
+  await agenda.start();
+  console.log('Agenda startet')
+})();
 
 export default app;
