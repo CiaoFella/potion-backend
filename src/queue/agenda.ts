@@ -6,11 +6,16 @@ export const agenda = new Agenda({ db: { address: mongoConnectionString } });
 
 agenda.define(
     "add Transaction",
-    { concurrency: 5, priority: 10 },
-      async (job, done) => {
-        const transaction  = (job.attrs.data as any).transaction;
-        const newTransaction = await Transaction.create(transaction);
-        await predictCategory(newTransaction);
-        done();
+    { concurrency: 10, priority: 10 },
+    async (job, done) => {
+        try {
+            const transaction = (job.attrs.data as any).transaction;
+            const newTransaction = await Transaction.create(transaction);
+            await predictCategory(newTransaction);
+            done();
+        } catch (error) {
+            job.fail(error).save();
+            done();
+        }
     }
 )
