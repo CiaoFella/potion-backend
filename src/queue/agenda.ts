@@ -26,7 +26,7 @@ agenda.define(
         try {
             const transaction = (job.attrs.data as any).transaction;
             const newTransaction = await Transaction.create(transaction);
-            agenda.create('predict category', {transaction: newTransaction});
+            agenda.create('predict category', { transaction: newTransaction }).save();
             done();
         } catch (error) {
             job.fail(error).save();

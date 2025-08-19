@@ -170,7 +170,7 @@ export class PlaidService {
               plaidTransactionId: plaidTransaction.transaction_id,
             };
 
-            await agenda.create('add Transaction', {transaction: transaction});
+            await agenda.create('add Transaction', {transaction: transaction}).save();
             createdCount++;
           }
 
@@ -187,7 +187,7 @@ export class PlaidService {
               },
             );
 
-             await agenda.create('predict category', {transaction: updatedTransaction});
+             await agenda.create('predict category', {transaction: updatedTransaction}).save();
           }
 
           // Process removed transactions
