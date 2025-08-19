@@ -26,7 +26,7 @@ agenda.define(
         try {
             const transaction = (job.attrs.data as any).transaction;
             const newTransaction = await Transaction.create(transaction);
-            if (!newTransaction?._id) {
+            if (!newTransaction?._id?.toHexString()) {
                 job.fail("error").save();
                 done();
             }
