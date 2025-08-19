@@ -434,6 +434,7 @@ server.listen(PORT, () => {
   // IIFE to give access to async/await
   await agenda.start();
   await agenda.every("1 minute", "add Transaction");
+  await agenda.every("2 minute", "predict category");
   console.log('Agenda startet')
 })();
 
