@@ -26,6 +26,10 @@ agenda.define(
         try {
             const transaction = (job.attrs.data as any).transaction;
             const newTransaction = await Transaction.create(transaction);
+            if (!newTransaction?._id) {
+                job.fail("error").save();
+                done();
+            }
             agenda.create('predict category', { transaction: newTransaction }).save();
             done();
         } catch (error) {
