@@ -4,7 +4,7 @@ import { predictCategory, Transaction } from '../models/Transaction';
 import { Types } from 'mongoose';
 import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
 import { BalanceCalculationService } from './balanceCalculationService';
-import { myEmitter } from './eventEmitter';
+const RunQueue = require('run-queue')
 
 enum PlaidWebhookCode {
   'userPermissionRevoked' = 'USER_PERMISSION_REVOKED',
@@ -146,6 +146,10 @@ export class PlaidService {
             accountMap[account.account_id] = account;
           });
 
+          const queue = new RunQueue({
+            maxConcurrency: 5
+          })
+
           // Process added transactions
           for (const plaidTransaction of added) {
             const transaction = {
@@ -164,35 +168,14 @@ export class PlaidService {
             };
 
             const newTransaction = await Transaction.create(transaction);
-            myEmitter.emit('databaseChange', {
-              eventType: "save",
-              collectionName: 'transactions',
-              documentId: newTransaction._id,
-              userId: newTransaction.createdBy,
-            });
-            setImmediate(async () => {
-              try {
-                await predictCategory(newTransaction);
-
-                // Emit another update after categorization completes
-                setTimeout(() => {
-                  myEmitter.emit('databaseChange', {
-                    eventType: 'update',
-                    collectionName: 'transactions',
-                    documentId: newTransaction._id,
-                    userId: newTransaction.createdBy,
-                  });
-                }, 1000); // Reduced to 1 second for faster feedback
-              } catch (error) {
-                console.error('Background categorization failed:', error);
-              }
-            });
+            queue.add(0, predictCategory(newTransaction), createdCount);
+            
             createdCount++;
           }
 
           // Process modified transactions
           for (const plaidTransaction of modified) {
-            const updatedTransaction = await Transaction.findOneAndUpdate(
+           const updatedTransaction = await Transaction.findOneAndUpdate(
               { plaidTransactionId: plaidTransaction.transaction_id },
               {
                 amount: Math.abs(plaidTransaction.amount),
@@ -203,7 +186,7 @@ export class PlaidService {
               },
             );
 
-            predictCategory(updatedTransaction);
+            queue.add(0, predictCategory(updatedTransaction), createdCount);
           }
 
           // Process removed transactions
