@@ -161,6 +161,7 @@ export const predictCategory = async (doc) => {
     console.error('❌ Error predicting category with Perplexity:', {
       transactionId: doc._id?.toString(),
       error: error.message,
+      status: error.status,
     });
 
     if (error.status == 429 || error.status == 503) {
