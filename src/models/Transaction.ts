@@ -167,7 +167,7 @@ export const predictCategory = async (doc) => {
     try {
       await Transaction.findByIdAndUpdate(doc._id.toString(), {
         category: null, // Clear the "AI Processing..." state
-        aiDescription: null,
+        aiDescription: error.message,
         action: 'CategoryAction',
       });
     } catch (updateError) {
