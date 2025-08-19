@@ -1,12 +1,10 @@
-import { plaidController } from './../controllers/plaidController';
-import { P90 } from './../../node_modules/aws-sdk/clients/iotwireless.d';
 import { plaidClient } from '../config/plaid';
 import { PlaidItem } from '../models/PlaidItem';
 import { predictCategory, Transaction } from '../models/Transaction';
 import { Types } from 'mongoose';
 import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
 import { BalanceCalculationService } from './balanceCalculationService';
-import { use } from 'react';
+import { myEmitter } from './eventEmitter';
 
 enum PlaidWebhookCode {
   'userPermissionRevoked' = 'USER_PERMISSION_REVOKED',
@@ -166,13 +164,35 @@ export class PlaidService {
             };
 
             const newTransaction = await Transaction.create(transaction);
-            predictCategory(newTransaction)
+            myEmitter.emit('databaseChange', {
+              eventType: "save",
+              collectionName: 'transactions',
+              documentId: newTransaction._id,
+              userId: newTransaction.createdBy,
+            });
+            setImmediate(async () => {
+              try {
+                await predictCategory(newTransaction);
+
+                // Emit another update after categorization completes
+                setTimeout(() => {
+                  myEmitter.emit('databaseChange', {
+                    eventType: 'update',
+                    collectionName: 'transactions',
+                    documentId: newTransaction._id,
+                    userId: newTransaction.createdBy,
+                  });
+                }, 1000); // Reduced to 1 second for faster feedback
+              } catch (error) {
+                console.error('Background categorization failed:', error);
+              }
+            });
             createdCount++;
           }
 
           // Process modified transactions
           for (const plaidTransaction of modified) {
-           const updatedTransaction = await Transaction.findOneAndUpdate(
+            const updatedTransaction = await Transaction.findOneAndUpdate(
               { plaidTransactionId: plaidTransaction.transaction_id },
               {
                 amount: Math.abs(plaidTransaction.amount),
@@ -286,15 +306,11 @@ export class PlaidService {
           'HISTORICAL_UPDATE',
           'DEFAULT_UPDATE',
           'SYNC_UPDATES_AVAILABLE',
+          'TRANSACTIONS_REMOVED',
         ];
 
         if (validUpdateCodes.includes(webhook_code)) {
-          console.log(`Processing ${webhook_code} for item_id: ${item_id}`);
-          // Sync new transactions
           await this.syncTransactions(plaidItem._id.toString());
-          console.log(
-            `Successfully synced transactions for item_id: ${item_id}`,
-          );
         } else {
           console.log(`Ignoring unhandled webhook code: ${webhook_code}`);
         }
