@@ -170,7 +170,7 @@ export class PlaidService {
               plaidTransactionId: plaidTransaction.transaction_id,
             };
 
-            agenda.create('add Transaction', transaction);
+            await agenda.create('add Transaction', {transaction: transaction}).save();
             createdCount++;
           }
 
