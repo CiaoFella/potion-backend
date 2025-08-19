@@ -1,7 +1,11 @@
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import { predictCategory, Transaction } from '../models/Transaction';
 import csv from 'csv-parser';
 import fs from 'fs';
 import mongoose from 'mongoose';
+import { Request, Response } from 'express';
+import { UserRoles, UserRoleType } from '../models/UserRoles';
+import { config } from '../config/config';
 
 const parseAmount = (amount: string) => {
   if (typeof amount === 'string') {
@@ -252,8 +256,26 @@ export const transactionController = {
       res.status(500).json({ error: error.message });
     }
   },
-
-  async getTransactions(req: any, res: any) {
+  async getTransactions(
+    req: Request<
+      {},
+      {},
+      {},
+      {
+        startDate?: string;
+        endDate?: string;
+        type?: string;
+        category?: string;
+        project?: string;
+        minAmount?: string;
+        maxAmount?: string;
+        search?: string;
+        client?: string;
+        limit?: string;
+      }
+    >,
+    res: Response
+  ) {
     try {
       const {
         startDate,
@@ -267,46 +289,100 @@ export const transactionController = {
         client,
       } = req.query;
 
-      // Directly use the X-User-ID header value for createdBy
-      const userId =
-        req.header('X-User-ID') || req.user?.userId || req.user?.id;
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
-      const query: any = { createdBy: userId };
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload;
 
-      // Add filters
-      if (startDate) query.date = { $gte: new Date(startDate) };
-      if (endDate) query.date = { ...query.date, $lte: new Date(endDate) };
+      // Determine which user's transactions to fetch
+      const targetUserId = decoded.roleType === UserRoleType.ACCOUNTANT
+        ? req.header('X-Businessowner-ID')
+        : decoded.userId;
+
+      if (!targetUserId) {
+        return res.status(400).json({
+          error: 'Missing user ID'
+        });
+      }
+
+      // If accountant, verify they have access to this user's data
+      if (decoded.roleType === UserRoleType.ACCOUNTANT) {
+        const hasAccess = await UserRoles.findOne({
+          user: decoded.userId,
+          businessOwner: targetUserId,
+          roleType: UserRoleType.ACCOUNTANT,
+          status: 'active',
+          deleted: { $ne: true }
+        });
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            error: 'You do not have access to this user\'s transactions'
+          });
+        }
+      }
+
+      // Build query
+      const query: Record<string, any> = { createdBy: targetUserId };
+
+      // Add date filters
+      if (startDate || endDate) {
+        query.date = {};
+        if (startDate) query.date.$gte = new Date(startDate);
+        if (endDate) query.date.$lte = new Date(endDate);
+      }
       if (type) query.type = type;
       if (category) query.category = category;
       if (project) query.project = project;
-      if (minAmount) query.amount = { $gte: parseFloat(minAmount) };
-      if (maxAmount)
-        query.amount = { ...query.amount, $lte: parseFloat(maxAmount) };
+      if (minAmount || maxAmount) {
+        query.amount = {};
+        if (minAmount) query.amount.$gte = parseFloat(minAmount);
+        if (maxAmount) query.amount.$lte = parseFloat(maxAmount);
+      }
+
       if (search) {
         query.$or = [
           { description: { $regex: search, $options: 'i' } },
           { counterparty: { $regex: search, $options: 'i' } },
         ];
       }
+
       if (client) {
         query.project = {
           $in: await mongoose
             .model('Project')
-            .find({ client: client })
+            .find({ client })
             .distinct('_id'),
         };
       }
 
+      // Execute query with pa gination
+      const limit = req.query.limit ? parseInt(req.query.limit) : 100;
       const transactions = await Transaction.find(query)
         .populate('invoice', 'invoiceNumber total status')
         .populate('project', 'name')
         .sort({ date: -1 })
-        .limit(req.query.limit ? parseInt(req.query.limit) : 100);
+        .limit(limit);
 
       res.json(transactions);
-    } catch (error: any) {
-      console.error('[Transactions] Error:', error.message);
-      res.status(500).json({ error: error.message });
+
+    } catch (error) {
+      console.error('[getTransactions] Error:', error);
+
+      if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+
+      if (error instanceof jwt.TokenExpiredError) {
+        return res.status(401).json({ error: 'Token expired' });
+      }
+
+      res.status(500).json({
+        error: 'An error occurred while fetching transactions'
+      });
     }
   },
 

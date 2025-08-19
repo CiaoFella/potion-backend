@@ -323,13 +323,13 @@ export const switchRole = async (
       return;
     }
 
-    // Find the target role
+    // Find the target role and populate businessOwner
     const targetRole = await UserRoles.findOne({
       _id: roleId,
       user: userId,
       deleted: false,
       status: 'active',
-    }).populate('businessOwner', 'firstName lastName businessName email');
+    }).populate('businessOwner', 'firstName lastName businessName email _id');
 
     if (!targetRole) {
       res.status(404).json({ error: 'Role not found or access denied' });
@@ -342,28 +342,21 @@ export const switchRole = async (
       return;
     }
 
-    // Generate new token for the switched role
-    const token = generateUnifiedToken(
-      userId,
-      targetRole._id.toString(),
-      user.email,
+    // Generate new token with all necessary information
+    const token = jwt.sign(
+      {
+        userId,
+        roleId: targetRole._id.toString(),
+        email: user.email,
+        roleType: targetRole.roleType,
+        // Include businessOwnerId for accountant access
+        businessOwnerId: targetRole.businessOwner?._id?.toString(),
+      },
+      config.jwtSecret!,
+      { expiresIn: '24h' }
     );
 
-    console.log('🔄 [switchRole] Generated new token:', {
-      userId,
-      roleId: targetRole._id.toString(),
-      email: user.email,
-      roleType: targetRole.roleType,
-      tokenPreview: token.substring(0, 50) + '...',
-    });
-
-    // Get all available roles
-    const availableRoles = await UserRoles.find({
-      user: userId,
-      deleted: false,
-      status: { $in: ['invited', 'active'] },
-    }).populate('businessOwner', 'firstName lastName businessName email');
-
+    // Map currentRole and availableRoles for response
     const currentRole = {
       id: targetRole._id.toString(),
       type: targetRole.roleType,
@@ -382,33 +375,43 @@ export const switchRole = async (
       accessLevel: targetRole.accessLevel,
     };
 
-    const mappedRoles = availableRoles.map((role) => ({
-      id: role._id.toString(),
-      type: role.roleType,
-      name: getRoleDisplayName(role.roleType, role.businessOwner),
-      businessOwner: role.businessOwner
-        ? {
-            id: (role.businessOwner as any)._id,
-            name: getFullDisplayName(
-              role.roleType,
-              role.businessOwner as any,
-              user,
-            ),
-            email: (role.businessOwner as any).email,
-          }
-        : null,
-      accessLevel: role.accessLevel,
-    }));
+    const mappedRoles = await UserRoles.find({
+      user: userId,
+      deleted: false,
+      status: { $in: ['invited', 'active'] },
+    }).populate('businessOwner', 'firstName lastName businessName email').then(roles =>
+      roles.map((role) => ({
+        id: role._id.toString(),
+        type: role.roleType,
+        name: getRoleDisplayName(role.roleType, role.businessOwner),
+        businessOwner: role.businessOwner
+          ? {
+              id: (role.businessOwner as any)._id,
+              name: getFullDisplayName(
+                role.roleType,
+                role.businessOwner as any,
+                user,
+              ),
+              email: (role.businessOwner as any).email,
+            }
+          : null,
+        accessLevel: role.accessLevel,
+      }))
+    );
 
+    // Add businessOwnerId to response for frontend use
     res.json({
       success: true,
       token,
-      currentRole,
+      currentRole: {
+        ...currentRole,
+        // Add businessOwnerId for X-User-ID header
+        businessOwnerId: targetRole.businessOwner?._id?.toString(),
+      },
       availableRoles: mappedRoles,
-      userRole:
-        targetRole.roleType === UserRoleType.BUSINESS_OWNER
-          ? 'user'
-          : targetRole.roleType,
+      userRole: targetRole.roleType === UserRoleType.BUSINESS_OWNER
+        ? 'user'
+        : targetRole.roleType,
     });
   } catch (error) {
     console.error('Switch role error:', error);
