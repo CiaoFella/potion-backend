@@ -6,7 +6,7 @@ export const agenda = new Agenda({ db: { address: mongoConnectionString } });
 
 agenda.define(
     "predict category",
-    { concurrency: 10, priority: 10 },
+    { concurrency: 5, priority: 10 },
     async (job, done) => {
         try {
             const transaction = (job.attrs.data as any).transaction;
@@ -26,8 +26,7 @@ agenda.define(
         try {
             const transaction = (job.attrs.data as any).transaction;
             const newTransaction = await Transaction.create(transaction);
-            agenda.now('predict category', {transaction: newTransaction});
-
+            agenda.create('predict category', {transaction: newTransaction});
             done();
         } catch (error) {
             job.fail(error).save();
