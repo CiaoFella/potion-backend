@@ -12,211 +12,104 @@ import type { AccountantRemovedProps } from '../templates/react-email/accountant
 import { AccessLevel, UserRoles, UserRoleType } from '../models/UserRoles';
 import { sendRoleInvitationEmail } from './unifiedAuthController';
 
-// Invite an accountant
+function generateInviteToken(userId: string, businessOwnerId: string) {
+  return require('jsonwebtoken').sign(
+    { userId, businessOwnerId, roleType: UserRoleType.ACCOUNTANT, setup: true },
+    process.env.JWT_SECRET || 'secret',
+    { expiresIn: '7d' }
+  );
+}
+
+enum roleTranslation {
+  "edit" = AccessLevel.CONTRIBUTOR,
+  "read" = AccessLevel.VIEWER
+}
+
 export const inviteAccountant = async (
   req: Request & { user?: { userId: string } },
   res: Response,
 ): Promise<any> => {
   try {
-    const { email, name, accessLevel, note } = req.body; // Add note field
-    const userId = req.user?.userId;
+    const { email, accessLevel, note } = req.body;
+    const businessOwnerId = req.user?.userId;
 
-    if (!userId) {
+    if (!businessOwnerId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Generate a unique token for invite
-    const inviteToken = crypto.randomBytes(32).toString('hex');
-    const inviteTokenExpiry = new Date();
-    inviteTokenExpiry.setHours(inviteTokenExpiry.getHours() + 24); // Token valid for 24 hours
-
-    // Check if accountant already exists
-    let accountant = await Accountant.findOne({ email });
-    let isNewAccountant = !accountant;
-
-    // If accountant doesn't exist, create one
-    if (!accountant) {
-      accountant = new Accountant({
-        email,
-        name,
-        userAccesses: [],
-      });
-      isNewAccountant = true;
-    }
-
-    // Check if a user with this email already exists and create one if not
-    const existingUser = await User.findOne({ email });
-    
-    if (!existingUser) {
-      const userData: any = {
+    // Find or create the accountant user
+    let accountantUser = await User.findOne({ email: email.toLowerCase() });
+    if (!accountantUser) {
+      accountantUser = new User({
         email: email.toLowerCase(),
-        firstName: accountant?.name?.split(' ')[0] || '',
-        lastName: accountant?.name?.split(' ').slice(1).join(' ') || '',
-        password: 'temp_password_' + Date.now(), // Temporary password
+        isActive: false,
+        firstName: '',
+        lastName: '',
         authProvider: 'password',
-        role: 'accountant',
         isPasswordSet: false,
-      };
-      
-      const user = new User(userData);
-      await user.save();
-
-      const inviteToken = jwt.sign(
-        { userId: user._id, businessOwnerId: userId, roleType: UserRoleType.ACCOUNTANT},
-        config.jwtSecret!,
-        { expiresIn: '7d' },
-      );
-  
-      const passwordSetupToken = jwt.sign(
-        { userId: user._id, roleType: UserRoleType.ACCOUNTANT, setup: true },
-        config.jwtSecret!,
-        { expiresIn: '7d' },
-      ); 
-
-      const inviter = await User.findById(userId);
-
-      enum roleTranslation {
-        "edit" = AccessLevel.CONTRIBUTOR,
-        "read" = AccessLevel.VIEWER
-      }
-
-      const userRole = new UserRoles({
-          user: user._id,
-          email: user.email,
-          roleType: UserRoleType.ACCOUNTANT,
-          accessLevel: roleTranslation[accessLevel],
-          status: 'invited',
-          inviteToken,
-          inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-          passwordSetupToken,
-          passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          invitedBy: userId,
-          invitedAt: new Date(),
-          businessOwner: inviter?._id || null,
-        });
-
-        await userRole.save();
-        await sendRoleInvitationEmail(user, userRole);
-    }
-
-    // Check if this accountant already has access to this user
-    const existingAccess = await UserAccountantAccess.findOne({
-      accountant: accountant._id,
-      user: userId,
-    });
-
-    if (existingAccess) {
-      return res.status(400).json({
-        message: 'This accountant already has access to your account',
       });
+      await accountantUser.save();
     }
 
-    // Check if accountant has any existing active relationships with other clients
-    const existingActiveRelationships = await UserAccountantAccess.find({
-      accountant: accountant._id,
-      status: 'active',
+    // Check if a UserRoles entry already exists for this accountant and business owner
+    let userRole = await UserRoles.findOne({
+      user: accountantUser._id,
+      businessOwner: businessOwnerId,
+      roleType: UserRoleType.ACCOUNTANT,
+      deleted: { $ne: true },
     });
 
-    const hasExistingClients = existingActiveRelationships.length > 0;
-    const shouldSendSetupEmail =
-      isNewAccountant || (!accountant.password && !hasExistingClients);
+    if (userRole) {
+      if (userRole.status === 'active') {
+        return res.status(400).json({ message: 'This accountant already has access to your account.' });
+      }
+      // If previously deleted or pending, update and resend invite
+      userRole.status = 'invited';
+      userRole.accessLevel = roleTranslation[accessLevel];
+      userRole.invitedAt = new Date();
+      userRole.invitedBy = (businessOwnerId as any);
+      userRole.deleted = false;
+      // Generate new tokens
+      const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
+      userRole.inviteToken = inviteToken;
+      userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      userRole.passwordSetupToken = inviteToken;
+      userRole.passwordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await userRole.save();
+      await sendRoleInvitationEmail(accountantUser, userRole);
+      return res.status(200).json({ message: 'Accountant invitation resent.' });
+    }
 
-    // Create the access relationship
-    const userAccess = new UserAccountantAccess({
-      accountant: accountant._id,
-      user: userId,
-      accessLevel,
+    // Create new UserRoles entry for this accountant
+    const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
+    userRole = new UserRoles({
+      user: accountantUser._id,
+      email: accountantUser.email,
+      roleType: UserRoleType.ACCOUNTANT,
+      accessLevel: roleTranslation[accessLevel],
+      status: 'invited',
       inviteToken,
-      inviteTokenExpiry,
-      status: 'pending',
+      inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      passwordSetupToken: inviteToken,
+      passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      invitedBy: businessOwnerId,
+      invitedAt: new Date(),
+      businessOwner: businessOwnerId,
+      note,
     });
-
-    await userAccess.save();
-
-    // Add the access to the accountant's userAccesses array
-    accountant.userAccesses.push(userAccess._id);
-    await accountant.save();
-
-    // Send invite email
-    if (shouldSendSetupEmail) {
-      // First time invitation - send setup email
-      const inviteLink = `${config.frontURL}/accountant/setup-account/${inviteToken}`;
-
-      try {
-        await sendEmail({
-          to: email,
-          subject:
-            'Your Potion accountant access is ready - You can now login!',
-          html: `
-                <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1>Hi ${name || 'there'},</h1>
-                    <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
-                    <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
-                    ${
-                      existingActiveRelationships.length > 0
-                        ? `<p><strong>You have access to ${existingActiveRelationships.length} client${existingActiveRelationships.length > 1 ? 's' : ''}:</strong>
-                    ${existingActiveRelationships.map((access) => `${(access.user as any).firstName} ${(access.user as any).lastName}`).join(', ')}${existingActiveRelationships.length > 3 ? ` and ${existingActiveRelationships.length - 3} more` : ''}`
-                        : ''
-                    }
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
-                    </div>
-                    <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
-                </div>
-            `,
-        });
-      } catch (emailError) {
-        console.error('Error sending setup invitation email:', emailError);
-        throw emailError;
-      }
-    } else {
-      // Existing accountant with clients - send "added to new client" email
-      try {
-        await sendEmail({
-          to: email,
-          subject: `New Client Access - ${user.firstName} ${user.lastName}`,
-          html: `
-            <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1>Hi ${accountant.name.split(' ')[0]},</h1>
-              <p><strong>${user.firstName} ${user.lastName}</strong>${user.businessName ? ` from ${user.businessName}` : ''} has granted you ${accessLevel} access to their financial records.</p>
-              <p>You can now access their account using your existing Potion login credentials.</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Access</a>
-              </div>
-              <p style="color: #666; font-size: 14px;">You can now manage multiple clients from your Potion dashboard.</p>
-            </div>
-          `,
-        });
-        console.log(
-          '✅ New client notification email sent successfully to:',
-          email,
-        );
-      } catch (emailError) {
-        console.error(
-          '❌ Error sending new client notification email:',
-          emailError,
-        );
-        throw emailError;
-      }
-    }
+    await userRole.save();
+    await sendRoleInvitationEmail(accountantUser, userRole);
 
     res.status(201).json({
       message: 'Accountant invited successfully',
-      userAccess: {
-        id: userAccess._id,
+      userRole: {
+        id: userRole._id,
         accountant: {
-          id: accountant._id,
-          name: accountant.name,
-          email: accountant.email,
+          id: accountantUser._id,
+          email: accountantUser.email,
         },
-        accessLevel,
-        status: userAccess.status,
+        accessLevel: userRole.accessLevel,
+        status: userRole.status,
       },
     });
   } catch (error) {
@@ -284,12 +177,11 @@ export const setupAccountantAccount = async (
                     <h1>Hi ${accountant.name.split(' ')[0] || accountant.name},</h1>
                     <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
                     <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
-                    ${
-                      clientNames.length > 0
-                        ? `<p><strong>You have access to ${clientNames.length} client${clientNames.length > 1 ? 's' : ''}:</strong>
+                    ${clientNames.length > 0
+            ? `<p><strong>You have access to ${clientNames.length} client${clientNames.length > 1 ? 's' : ''}:</strong>
                     ${clientNames.slice(0, 3).join(', ')}${clientNames.length > 3 ? ` and ${clientNames.length - 3} more` : ''}</p>`
-                        : ''
-                    }
+            : ''
+          }
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
                     </div>
@@ -631,12 +523,11 @@ export const resendInvitation = async (
                     <h1>Hi ${accountant.name.split(' ')[0] || accountant.name},</h1>
                     <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
                     <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
-                    ${
-                      isNewAccountant
-                        ? `<p><strong>You have access to ${isNewAccountant ? '1' : '0'} client${isNewAccountant ? 's' : ''}:</strong>
+                    ${isNewAccountant
+          ? `<p><strong>You have access to ${isNewAccountant ? '1' : '0'} client${isNewAccountant ? 's' : ''}:</strong>
                     ${isNewAccountant ? `${user.firstName} ${user.lastName}` : ''}</p>`
-                        : ''
-                    }
+          : ''
+        }
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="${inviteUrl}" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
                     </div>
