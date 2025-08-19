@@ -89,7 +89,6 @@ TransactionSchema.index({ plaidTransactionId: 1 });
 
 export const predictCategory = async (doc) => {
   try {
-
     if (doc?.category && doc.category !== aiCategoryPlaceholder) {
       return;
     }
@@ -163,23 +162,30 @@ export const predictCategory = async (doc) => {
       error: error.message,
     });
 
-    // Clear AI Processing state and mark transaction for manual categorization on error
-    try {
-      await Transaction.findByIdAndUpdate(doc._id.toString(), {
-        category: null, // Clear the "AI Processing..." state
-        aiDescription: error.message,
-        action: 'CategoryAction',
-      });
-    } catch (updateError) {
-      console.error(
-        'Failed to clear processing state and mark transaction for manual categorization:',
-        updateError,
-      );
+    if (error.status == 429 || error.status == 503) {
+      // retry after 60 seconds
+      setTimeout(() => {
+        predictCategory(doc);
+      }, 60000);
+    } else {
+      // Clear AI Processing state and mark transaction for manual categorization on error
+      try {
+        await Transaction.findByIdAndUpdate(doc._id.toString(), {
+          category: null, // Clear the "AI Processing..." state
+          aiDescription: error.message,
+          action: 'CategoryAction',
+        });
+      } catch (updateError) {
+        console.error(
+          'Failed to clear processing state and mark transaction for manual categorization:',
+          updateError,
+        );
+      }
     }
   }
 };
 
-export const aiCategoryPlaceholder = "AI Processing...";
+export const aiCategoryPlaceholder = 'AI Processing...';
 
 const actionHandler = async (doc, type = 'update') => {
   // For new transactions, set initial AI processing state
@@ -280,22 +286,6 @@ TransactionSchema.post('insertMany', async function (docs: any[]) {
     // Process categorization asynchronously in background for transactions that need it
     if (transactionsNeedingAI.length > 0) {
       setImmediate(async () => {
-        const categorizedCount = await Promise.allSettled(
-          transactionsNeedingAI.map(async (d) => {
-            try {
-              await predictCategory(d);
-              return { success: true, id: d._id };
-            } catch (e) {
-              console.error(
-                'predictCategory failed for inserted doc',
-                d?._id?.toString(),
-                e,
-              );
-              return { success: false, id: d._id, error: e };
-            }
-          }),
-        );
-
         // Emit another update after categorizations complete to refresh UI with actual categories
         setTimeout(() => {
           for (const d of transactionsNeedingAI) {

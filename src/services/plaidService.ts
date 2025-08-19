@@ -2,7 +2,11 @@ import { plaidController } from './../controllers/plaidController';
 import { P90 } from './../../node_modules/aws-sdk/clients/iotwireless.d';
 import { plaidClient } from '../config/plaid';
 import { PlaidItem } from '../models/PlaidItem';
-import { aiCategoryPlaceholder, predictCategory, Transaction } from '../models/Transaction';
+import {
+  aiCategoryPlaceholder,
+  predictCategory,
+  Transaction,
+} from '../models/Transaction';
 import { Types } from 'mongoose';
 import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
 import { BalanceCalculationService } from './balanceCalculationService';
@@ -149,7 +153,7 @@ export class PlaidService {
           });
 
           // Process added transactions
-          for (const plaidTransaction of added) {
+          for (const [index, plaidTransaction] of added.entries()) {
             const transaction = {
               date: new Date(plaidTransaction.date),
               type: classifyTransaction(plaidTransaction),
@@ -166,13 +170,15 @@ export class PlaidService {
             };
 
             const newTransaction = await Transaction.create(transaction);
-            predictCategory(newTransaction);
+            setTimeout(() => {
+              predictCategory(newTransaction);
+            }, 200 * index);
             createdCount++;
           }
 
           // Process modified transactions
-          for (const plaidTransaction of modified) {
-           const updatedTransaction = await Transaction.findOneAndUpdate(
+          for (const [index, plaidTransaction] of modified.entries()) {
+            const updatedTransaction = await Transaction.findOneAndUpdate(
               { plaidTransactionId: plaidTransaction.transaction_id },
               {
                 amount: Math.abs(plaidTransaction.amount),
@@ -183,7 +189,9 @@ export class PlaidService {
               },
             );
 
-            predictCategory(updatedTransaction);
+            setTimeout(() => {
+              predictCategory(updatedTransaction);
+            }, 200 * index);
           }
 
           // Process removed transactions
