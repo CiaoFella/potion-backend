@@ -1,10 +1,12 @@
+import { plaidController } from './../controllers/plaidController';
+import { P90 } from './../../node_modules/aws-sdk/clients/iotwireless.d';
 import { plaidClient } from '../config/plaid';
 import { PlaidItem } from '../models/PlaidItem';
-import { predictCategory, Transaction } from '../models/Transaction';
+import { aiCategoryPlaceholder, predictCategory, Transaction } from '../models/Transaction';
 import { Types } from 'mongoose';
 import { CountryCode, LinkTokenCreateRequest, Products } from 'plaid';
 import { BalanceCalculationService } from './balanceCalculationService';
-const RunQueue = require('run-queue')
+import { use } from 'react';
 
 enum PlaidWebhookCode {
   'userPermissionRevoked' = 'USER_PERMISSION_REVOKED',
@@ -146,17 +148,6 @@ export class PlaidService {
             accountMap[account.account_id] = account;
           });
 
-          const queue = new RunQueue({
-            maxConcurrency: 5
-          })
-
-          function predictWrapper(newTransaction, next) {
-            setTimeout(() => {
-              predictCategory(newTransaction);
-              next();
-            }, 2000)
-          }
-
           // Process added transactions
           for (const plaidTransaction of added) {
             const transaction = {
@@ -169,14 +160,13 @@ export class PlaidService {
               account: JSON.stringify(accountMap[plaidTransaction.account_id]),
               counterparty:
                 plaidTransaction.merchant_name || plaidTransaction.name,
-              category: '',
+              category: aiCategoryPlaceholder,
               createdBy: plaidItem.userId,
               plaidTransactionId: plaidTransaction.transaction_id,
             };
 
             const newTransaction = await Transaction.create(transaction);
-            queue.add(0, () => predictWrapper(newTransaction, queue.next), [createdCount]);
-            
+            predictCategory(newTransaction);
             createdCount++;
           }
 
@@ -193,10 +183,8 @@ export class PlaidService {
               },
             );
 
-            queue.add(0, () => predictWrapper(updatedTransaction, queue.next), null);
+            predictCategory(updatedTransaction);
           }
-
-          queue.run()
 
           // Process removed transactions
           for (const removedTransaction of removed) {
