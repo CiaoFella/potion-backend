@@ -163,7 +163,7 @@ export const predictCategory = async (doc) => {
       error: error.message,
     });
 
-    if (error.status === 429 || error.status === 503) {
+    if (error.status == 429 || error.status == 503) {
       // retry after 60 seconds
       setTimeout(() => {
         predictCategory(doc)
