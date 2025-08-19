@@ -163,7 +163,12 @@ export const predictCategory = async (doc) => {
       error: error.message,
     });
 
-    if (error.status !== 429) {
+    if (error.status === 429 || error.status === 503) {
+      // retry after 60 seconds
+      setTimeout(() => {
+        predictCategory(doc)
+      }, 60000)
+    } else {
       // Clear AI Processing state and mark transaction for manual categorization on error
       try {
         await Transaction.findByIdAndUpdate(doc._id.toString(), {
@@ -177,11 +182,6 @@ export const predictCategory = async (doc) => {
           updateError,
         );
       }
-    } else {
-      // retry after 60 seconds
-      setTimeout(() => {
-        predictCategory(doc)
-      }, 60000)
     }
   }
 };
