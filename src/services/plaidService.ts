@@ -154,7 +154,7 @@ export class PlaidService {
             setTimeout(() => {
               predictCategory(newTransaction);
               next();
-            }, 1000)
+            }, 2000)
           }
 
           // Process added transactions
@@ -175,7 +175,7 @@ export class PlaidService {
             };
 
             const newTransaction = await Transaction.create(transaction);
-            queue.add(0, () => predictWrapper(newTransaction, queue.next), null);
+            queue.add(0, () => predictWrapper(newTransaction, queue.next), [createdCount]);
             
             createdCount++;
           }
@@ -195,6 +195,8 @@ export class PlaidService {
 
             queue.add(0, () => predictWrapper(updatedTransaction, queue.next), null);
           }
+
+          queue.run()
 
           // Process removed transactions
           for (const removedTransaction of removed) {
