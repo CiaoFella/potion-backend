@@ -150,6 +150,13 @@ export class PlaidService {
             maxConcurrency: 5
           })
 
+          function predictWrapper(newTransaction, next) {
+            setTimeout(() => {
+              predictCategory(newTransaction);
+              next();
+            }, 1000)
+          }
+
           // Process added transactions
           for (const plaidTransaction of added) {
             const transaction = {
@@ -168,7 +175,7 @@ export class PlaidService {
             };
 
             const newTransaction = await Transaction.create(transaction);
-            queue.add(0, () => predictCategory(newTransaction), null);
+            queue.add(0, () => predictWrapper(newTransaction, queue.next), null);
             
             createdCount++;
           }
@@ -186,7 +193,7 @@ export class PlaidService {
               },
             );
 
-            queue.add(0, predictCategory(updatedTransaction), createdCount);
+            queue.add(0, () => predictWrapper(updatedTransaction, queue.next), null);
           }
 
           // Process removed transactions
