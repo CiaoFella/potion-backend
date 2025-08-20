@@ -4,7 +4,7 @@ import csv from 'csv-parser';
 import fs from 'fs';
 import mongoose from 'mongoose';
 import { Request, Response } from 'express';
-import { UserRoles, UserRoleType } from '../models/UserRoles';
+import { AccessLevel, UserRoles, UserRoleType } from '../models/UserRoles';
 import { config } from '../config/config';
 
 const parseAmount = (amount: string) => {
@@ -92,41 +92,91 @@ export const transactionController = {
     }
   },
 
-  async updateTransaction(req: any, res: any) {
-    try {
-      // Use X-User-ID header if available
-      const userId =
-        req.header('X-User-ID') || req.user?.userId || req.user?.id;
-
-      const updateData = { ...req.body };
-      if (updateData.amount) {
-        updateData.amount = parseAmount(updateData.amount);
-      }
-
-      const transaction = await Transaction.findOneAndUpdate(
-        { _id: req.params.id, createdBy: userId },
-        {
-          ...updateData,
-          isUserConfirmed:
-            updateData.isUserConfirmed || updateData.category ? true : false,
-          isExcluded: updateData.isExcluded ?? false,
-        },
-        { new: true, runValidators: true },
-      );
-
-      if (!transaction) {
-        return res.status(404).json({ error: 'Transaction not found' });
-      }
-
-      if (updateData?.description) {
-        predictCategory(transaction);
-      }
-
-      res.json(transaction);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+  async updateTransaction(
+  req: Request,
+  res: Response
+) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
-  },
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload & {
+      userId: string;
+      roleType?: UserRoleType;
+    };
+
+    // Determine which user's transactions to update
+    const targetUserId = decoded.roleType === UserRoleType.ACCOUNTANT
+      ? req.header('X-Businessowner-ID')
+      : decoded.userId;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'Missing user ID' });
+    }
+
+    // If accountant, verify they have edit access
+    if (decoded.roleType === UserRoleType.ACCOUNTANT) {
+      const accountantRole = await UserRoles.findOne({
+        user: decoded.userId,
+        businessOwner: targetUserId,
+        roleType: UserRoleType.ACCOUNTANT,
+        status: 'active',
+        deleted: { $ne: true }
+      });
+
+      if (!accountantRole) {
+        return res.status(403).json({ error: 'You do not have access to this user\'s transactions' });
+      }
+
+      // Check if accountant has edit permissions
+      if (accountantRole.accessLevel === AccessLevel.VIEWER) {
+        return res.status(403).json({ error: 'You do not have permission to update transactions' });
+      }
+    }
+
+    const updateData = { ...req.body };
+    if (updateData.amount) {
+      updateData.amount = parseAmount(updateData.amount);
+    }
+
+    const _id = req.params.id;
+    console.log('[updateTransaction] Updating transaction:', updateData);
+
+    const transaction = await Transaction.findOneAndUpdate(
+      { _id, createdBy: targetUserId },
+      {
+        ...updateData,
+        isUserConfirmed: updateData.isUserConfirmed || updateData.category ? true : false,
+        isExcluded: updateData.isExcluded ?? false,
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    if (updateData?.description) {
+      predictCategory(transaction);
+    }
+
+    console.log('[updateTransaction] Updated transaction:', transaction);
+    res.json(transaction);
+
+  } catch (error) {
+    console.error('[updateTransaction] Error:', error);
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: 'Token expired' });
+    }
+    res.status(500).json({ error: 'Failed to update transaction' });
+  }
+},
 
   async deleteTransaction(req: any, res: any) {
     try {

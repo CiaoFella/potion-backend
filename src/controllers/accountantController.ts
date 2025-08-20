@@ -28,93 +28,124 @@ enum roleTranslation {
 export const inviteAccountant = async (
   req: Request & { user?: { userId: string } },
   res: Response,
-): Promise<any> => {
+): Promise<void> => {
   try {
     const { email, accessLevel, note } = req.body;
     const businessOwnerId = req.user?.userId;
 
     if (!businessOwnerId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
     }
 
-    // Find or create the accountant user
-    let accountantUser = await User.findOne({ email: email.toLowerCase() });
+    // Find or create the accountant user with accountant role
+    let accountantUser = await User.findOne({ 
+      email: email.toLowerCase(),
+      roleType: UserRoleType.ACCOUNTANT 
+    });
+
     if (!accountantUser) {
-      accountantUser = new User({
+      // Create new user with accountant role
+      accountantUser = await User.create({
         email: email.toLowerCase(),
         isActive: false,
-        firstName: '',
-        lastName: '',
+        roleType: UserRoleType.ACCOUNTANT,
         authProvider: 'password',
-        isPasswordSet: false,
+        isPasswordSet: false
       });
+    }
+
+    // Check if this business owner already has granted access to this accountant
+    const existingRole = await UserRoles.findOne({
+      user: accountantUser._id,
+      businessOwner: businessOwnerId,
+      roleType: UserRoleType.ACCOUNTANT,
+      deleted: { $ne: true }
+    });
+
+    if (existingRole?.status === 'active') {
+      res.status(400).json({ 
+        message: 'This accountant already has access to your account' 
+      });
+      return;
+    }
+
+    // Generate token for business owner access
+    const accessToken = jwt.sign(
+      { 
+        userId: accountantUser._id,
+        businessOwnerId,
+        roleType: UserRoleType.ACCOUNTANT,
+        accessLevel: roleTranslation[accessLevel]
+      },
+      config.jwtSecret!,
+      { expiresIn: '7d' }
+    );
+
+    if (existingRole) {
+      // Update existing access
+      existingRole.status = 'invited';
+      existingRole.accessLevel = roleTranslation[accessLevel];
+      existingRole.invitedAt = new Date();
+      existingRole.inviteToken = accessToken;
+      existingRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await existingRole.save();
+
+      // If accountant already has password set, just send role invitation
+      if (accountantUser.isPasswordSet) {
+        await sendRoleInvitationEmail(accountantUser, existingRole);
+        res.status(200).json({ message: 'Accountant invitation sent' });
+        return;
+      }
+    } else {
+      const newRole = await UserRoles.create({
+        user: accountantUser._id,
+        email: accountantUser.email,
+        roleType: UserRoleType.ACCOUNTANT,
+        accessLevel: roleTranslation[accessLevel],
+        status: 'invited',
+        inviteToken: accessToken,
+        inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        invitedBy: businessOwnerId,
+        invitedAt: new Date(),
+        businessOwner: businessOwnerId,
+        note
+      });
+
+
+      if (accountantUser.isPasswordSet) {
+        await sendRoleInvitationEmail(accountantUser, newRole);
+        res.status(201).json({ 
+          message: 'Accountant invitation sent',
+          roleId: newRole._id
+        });
+        return;
+      }
+    }
+
+    if (!accountantUser.isPasswordSet) {
+      const setupToken = jwt.sign(
+        { 
+          userId: accountantUser._id,
+          roleType: UserRoleType.ACCOUNTANT,
+          setup: true 
+        },
+        config.jwtSecret!,
+        { expiresIn: '7d' }
+      );
+
+      accountantUser.passwordSetupToken = setupToken;
+      accountantUser.passwordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       await accountantUser.save();
     }
 
-    // Check if a UserRoles entry already exists for this accountant and business owner
-    let userRole = await UserRoles.findOne({
-      user: accountantUser._id,
-      businessOwner: businessOwnerId,
-      roleType: UserRoleType.ACCOUNTANT,
-      deleted: { $ne: true },
-    });
-
-    if (userRole) {
-      if (userRole.status === 'active') {
-        return res.status(400).json({ message: 'This accountant already has access to your account.' });
-      }
-      // If previously deleted or pending, update and resend invite
-      userRole.status = 'invited';
-      userRole.accessLevel = roleTranslation[accessLevel];
-      userRole.invitedAt = new Date();
-      userRole.invitedBy = (businessOwnerId as any);
-      userRole.deleted = false;
-      // Generate new tokens
-      const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
-      userRole.inviteToken = inviteToken;
-      userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      userRole.passwordSetupToken = inviteToken;
-      userRole.passwordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await userRole.save();
-      await sendRoleInvitationEmail(accountantUser, userRole);
-      return res.status(200).json({ message: 'Accountant invitation resent.' });
-    }
-
-    // Create new UserRoles entry for this accountant
-    const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
-    userRole = new UserRoles({
-      user: accountantUser._id,
-      email: accountantUser.email,
-      roleType: UserRoleType.ACCOUNTANT,
-      accessLevel: roleTranslation[accessLevel],
-      status: 'invited',
-      inviteToken,
-      inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      passwordSetupToken: inviteToken,
-      passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      invitedBy: businessOwnerId,
-      invitedAt: new Date(),
-      businessOwner: businessOwnerId,
-      note,
-    });
-    await userRole.save();
-    await sendRoleInvitationEmail(accountantUser, userRole);
-
     res.status(201).json({
       message: 'Accountant invited successfully',
-      userRole: {
-        id: userRole._id,
-        accountant: {
-          id: accountantUser._id,
-          email: accountantUser.email,
-        },
-        accessLevel: userRole.accessLevel,
-        status: userRole.status,
-      },
+      needsPasswordSetup: !accountantUser.isPasswordSet
     });
+
   } catch (error) {
-    console.error('Error inviting accountant:', error);
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
