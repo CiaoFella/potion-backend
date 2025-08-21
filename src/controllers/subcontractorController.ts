@@ -614,19 +614,8 @@ export const bulkAssignSubcontractors = async (req: Request, res: Response) => {
               senderName,
               project.description,
             );
-
-            console.log(
-              '✅ Project assignment update email sent to:',
-              subcontractor.email,
-            );
           } catch (emailError) {
-            console.error(
-              '❌ Error sending project assignment update email to',
-              subcontractor.email,
-              ':',
-              emailError,
-            );
-            // Don't fail the assignment if email fails
+    
           }
         } else {
           // Create new
