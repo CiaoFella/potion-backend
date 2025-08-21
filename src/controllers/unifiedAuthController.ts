@@ -331,6 +331,9 @@ export const switchRole = async (
       status: 'active',
     }).populate('businessOwner', 'firstName lastName businessName email _id');
 
+
+    console.log("----------------------------------", targetRole)
+
     if (!targetRole) {
       res.status(404).json({ error: 'Role not found or access denied' });
       return;
@@ -1081,12 +1084,12 @@ export const sendRoleInvitationEmail = async (
         'Your Business Partner'
       : 'Your Business Partner';
 
-    const setupLink = `${config.frontURL}/setup-password/${userRole.passwordSetupToken}`;
+    const setupLink = `${config.frontURL}/setup-password/${userRole.inviteToken}`;
 
     let subject = '';
     let htmlContent = '';
 
-    if (userRole.roleType === UserRoleType.ACCOUNTANT) {
+    if (userRole?.accountant) {
       subject = `Invitation: Join ${businessOwnerName}'s team as Accountant`;
       htmlContent = `
         <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">

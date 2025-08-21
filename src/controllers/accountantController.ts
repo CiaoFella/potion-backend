@@ -6,9 +6,6 @@ import { sendEmail } from '../services/emailService';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/config';
-import { reactEmailService } from '../services/reactEmailService';
-import type { AccountantLoginReadyProps } from '../templates/react-email/accountant-login-ready';
-import type { AccountantRemovedProps } from '../templates/react-email/accountant-removed';
 import { AccessLevel, UserRoles, UserRoleType } from '../models/UserRoles';
 import { sendRoleInvitationEmail } from './unifiedAuthController';
 
@@ -28,124 +25,93 @@ enum roleTranslation {
 export const inviteAccountant = async (
   req: Request & { user?: { userId: string } },
   res: Response,
-): Promise<void> => {
+): Promise<any> => {
   try {
     const { email, accessLevel, note } = req.body;
     const businessOwnerId = req.user?.userId;
 
     if (!businessOwnerId) {
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Find or create the accountant user with accountant role
-    let accountantUser = await User.findOne({ 
-      email: email.toLowerCase(),
-      roleType: UserRoleType.ACCOUNTANT 
-    });
-
+    // Find or create the accountant user
+    let accountantUser = await User.findOne({ email: email.toLowerCase() });
     if (!accountantUser) {
-      // Create new user with accountant role
-      accountantUser = await User.create({
+      accountantUser = new User({
         email: email.toLowerCase(),
         isActive: false,
-        roleType: UserRoleType.ACCOUNTANT,
+        firstName: '',
+        lastName: '',
         authProvider: 'password',
-        isPasswordSet: false
+        isPasswordSet: false,
       });
-    }
-
-    // Check if this business owner already has granted access to this accountant
-    const existingRole = await UserRoles.findOne({
-      user: accountantUser._id,
-      businessOwner: businessOwnerId,
-      roleType: UserRoleType.ACCOUNTANT,
-      deleted: { $ne: true }
-    });
-
-    if (existingRole?.status === 'active') {
-      res.status(400).json({ 
-        message: 'This accountant already has access to your account' 
-      });
-      return;
-    }
-
-    // Generate token for business owner access
-    const accessToken = jwt.sign(
-      { 
-        userId: accountantUser._id,
-        businessOwnerId,
-        roleType: UserRoleType.ACCOUNTANT,
-        accessLevel: roleTranslation[accessLevel]
-      },
-      config.jwtSecret!,
-      { expiresIn: '7d' }
-    );
-
-    if (existingRole) {
-      // Update existing access
-      existingRole.status = 'invited';
-      existingRole.accessLevel = roleTranslation[accessLevel];
-      existingRole.invitedAt = new Date();
-      existingRole.inviteToken = accessToken;
-      existingRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await existingRole.save();
-
-      // If accountant already has password set, just send role invitation
-      if (accountantUser.isPasswordSet) {
-        await sendRoleInvitationEmail(accountantUser, existingRole);
-        res.status(200).json({ message: 'Accountant invitation sent' });
-        return;
-      }
-    } else {
-      const newRole = await UserRoles.create({
-        user: accountantUser._id,
-        email: accountantUser.email,
-        roleType: UserRoleType.ACCOUNTANT,
-        accessLevel: roleTranslation[accessLevel],
-        status: 'invited',
-        inviteToken: accessToken,
-        inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        invitedBy: businessOwnerId,
-        invitedAt: new Date(),
-        businessOwner: businessOwnerId,
-        note
-      });
-
-
-      if (accountantUser.isPasswordSet) {
-        await sendRoleInvitationEmail(accountantUser, newRole);
-        res.status(201).json({ 
-          message: 'Accountant invitation sent',
-          roleId: newRole._id
-        });
-        return;
-      }
-    }
-
-    if (!accountantUser.isPasswordSet) {
-      const setupToken = jwt.sign(
-        { 
-          userId: accountantUser._id,
-          roleType: UserRoleType.ACCOUNTANT,
-          setup: true 
-        },
-        config.jwtSecret!,
-        { expiresIn: '7d' }
-      );
-
-      accountantUser.passwordSetupToken = setupToken;
-      accountantUser.passwordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       await accountantUser.save();
     }
 
-    res.status(201).json({
-      message: 'Accountant invited successfully',
-      needsPasswordSetup: !accountantUser.isPasswordSet
+    // Check if a UserRoles entry already exists for this accountant and business owner
+    let userRole = await UserRoles.findOne({
+      user: accountantUser._id,
+      businessOwner: businessOwnerId,
+      roleType: UserRoleType.ACCOUNTANT,
+      deleted: { $ne: true },
     });
 
+    if (userRole) {
+      if (userRole.status === 'active') {
+        return res.status(400).json({ message: 'This accountant already has access to your account.' });
+      }
+      // If previously deleted or pending, update and resend invite
+      userRole.status = 'invited';
+      userRole.accessLevel = roleTranslation[accessLevel];
+      userRole.invitedAt = new Date();
+      userRole.invitedBy = (businessOwnerId as any);
+      userRole.deleted = false;
+      // Generate new tokens
+      const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
+      userRole.inviteToken = inviteToken;
+      userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      userRole.passwordSetupToken = inviteToken;
+      userRole.passwordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await userRole.save();
+      await sendRoleInvitationEmail(accountantUser, userRole);
+      return res.status(200).json({ message: 'Accountant invitation resent.' });
+    }
+
+    // Create new UserRoles entry for this accountant
+    const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
+    userRole = new UserRoles({
+      user: accountantUser._id,
+      email: accountantUser.email,
+      roleType: UserRoleType.ACCOUNTANT,
+      accessLevel: roleTranslation[accessLevel],
+      status: 'invited',
+      inviteToken,
+      inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      passwordSetupToken: inviteToken,
+      passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      invitedBy: businessOwnerId,
+      invitedAt: new Date(),
+      businessOwner: businessOwnerId,
+      note,
+    });
+    await userRole.save();
+    await sendRoleInvitationEmail(accountantUser, userRole);
+
+    res.status(201).json({
+      message: 'Accountant invited successfully',
+      userRole: {
+        id: userRole._id,
+        accountant: {
+          id: accountantUser._id,
+          email: accountantUser.email,
+        },
+        accessLevel: userRole.accessLevel,
+        status: userRole.status,
+      },
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error inviting accountant:', error);
+    res.status(500).json({ message: 'Server error', error });
   }
 };
 
@@ -311,16 +277,18 @@ export const getAccountants = async (
     }
 
     // Find all user-accountant access relationships for this user
-    const userAccesses = await UserAccountantAccess.find({
-      user: userId,
-    }).populate('accountant');
+    const userAccesses = await UserRoles.find({
+      businessOwner: userId,
+    }).populate('user', 'firstName lastName email');
+
+    console.log('User accesses found:', userAccesses[0]);
 
     res.json(
       userAccesses.map((access) => ({
         id: access._id,
-        accountantId: (access.accountant as any)._id,
-        email: (access.accountant as any).email,
-        name: (access.accountant as any).name,
+        accountantId: (access as any)._id,
+        email: (access as any).user.email,
+        name: (access as any).user.firstName + ' ' + (access as any).user.lastName,
         accessLevel: access.accessLevel,
         status: access.status,
         createdAt: access.createdAt,
@@ -436,63 +404,66 @@ export const toggleAccountantStatus = async (
   }
 };
 
-// Delete an accountant's access
 export const deleteAccountant = async (
   req: Request & { user?: { userId: string } },
-  res: Response,
-): Promise<any> => {
+  res: Response
+): Promise<void> => {
   try {
     const { accessId } = req.params;
-    const userId = req.user?.userId;
+    const businessOwnerId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    if (!businessOwnerId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
     }
 
-    // Find the access relationship with populated user and accountant
-    const userAccess = await UserAccountantAccess.findOne({
+    // Find the UserRole with populated user information
+    const userRole = await UserRoles.findOne({
       _id: accessId,
-      user: userId,
-    })
-      .populate('user')
-      .populate('accountant');
+      businessOwner: businessOwnerId,
+      roleType: UserRoleType.ACCOUNTANT
+    }).populate('user', 'firstName lastName email');
 
-    if (!userAccess) {
-      return res.status(404).json({ message: 'Accountant access not found' });
+    if (!userRole) {
+      res.status(404).json({ message: 'Accountant access not found' });
+      return;
     }
 
-    // Delete the access relationship
-    await UserAccountantAccess.deleteOne({ _id: userAccess._id });
+    // Get user details for email before deletion
+    const accountantUser = userRole.user;
+    const businessOwner = await User.findById(businessOwnerId);
 
-    // Send removal email
-    const accountant = userAccess.accountant as any;
-    const user = userAccess.user as any;
+    // Delete the UserRole completely
+    await UserRoles.deleteOne({ _id: accessId });
 
-    await sendEmail({
-      to: accountant.email,
-      subject: `${user.firstName} has removed your access - Potion Accountant`,
-      html: `
-        <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <div style="text-align: center; padding: 40px 20px 30px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-            <h1 style="font-size: 28px; font-weight: bold; margin: 0;">POTION</h1>
-            <p style="color: #6b7280; margin: 8px 0 0;">Professional Accounting Platform</p>
-          </div>
-          <div style="padding: 40px 30px;">
-            <h2 style="font-size: 18px; margin: 0 0 20px;">Hello ${accountant.name},</h2>
-            <p><strong>${user.firstName}</strong> has removed your access to their books as an accountant user through Potion Accountant.</p>
-            <p>You will no longer be able to access their financial data or reports.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Login to Your Dashboard</a>
+    if (accountantUser && businessOwner) {
+      // Send removal notification email
+      await sendEmail({
+        to: (accountantUser as any).email,
+        subject: `${businessOwner.firstName || 'Business owner'} has removed your access - Potion Accountant`,
+        html: `
+          <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="text-align: center; padding: 40px 20px 30px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+              <h1 style="font-size: 28px; font-weight: bold; margin: 0;">POTION</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">Professional Accounting Platform</p>
             </div>
-            <p style="color: #6b7280; font-size: 14px;">If you believe this was a mistake or need further assistance, please contact the client directly.</p>
+            <div style="padding: 40px 30px;">
+              <h2 style="font-size: 18px; margin: 0 0 20px;">Hello ${(accountantUser as any).firstName || 'there'},</h2>
+              <p><strong>${businessOwner.firstName + ' ' + businessOwner.lastName || 'The business owner'}</strong> has removed your access to their books.</p>
+              <p>You will no longer be able to access their financial data or reports.</p>
+              <p style="color: #6b7280; font-size: 14px;">If you believe this was a mistake, please contact the business owner directly.</p>
+            </div>
           </div>
-        </div>
-      `,
+        `
+      });
+    }
+
+    res.status(200).json({ 
+      message: 'Accountant access removed successfully',
+      roleId: accessId
     });
 
-    res.json({ message: 'Accountant access deleted successfully' });
   } catch (error) {
-    console.error('Error deleting accountant:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
