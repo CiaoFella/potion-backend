@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { tests } from './../../node_modules/tsconfig-paths/src/__tests__/data/match-path-data';
 import { accountId } from './../../node_modules/aws-sdk/clients/health.d';
 import e, { Request, Response } from 'express';
@@ -6,6 +7,8 @@ import { PlaidItem } from '../models/PlaidItem';
 import { Transaction } from '../models/Transaction';
 import { BalanceCalculationService } from '../services/balanceCalculationService';
 import { plaidClient } from '../config/plaid';
+import { config } from '../config/config';
+import { UserRoles, UserRoleType } from '../models/UserRoles';
 
 export const plaidController = {
   async createLinkToken(req: Request, res: Response): Promise<void> {
@@ -206,6 +209,103 @@ export const plaidController = {
     } catch (error: any) {
       console.error('[deletePlaidItem] Error:', error.message);
       res.status(400).json({ error: error.message });
+    }
+  },
+
+  async updatePlaidItem(req, res): Promise<void> {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, config.jwtSecret) as {
+        userId: string;
+        roleType?: UserRoleType;
+        businessOwnerId?: string;
+      };
+
+      const targetUserId = decoded.roleType === UserRoleType.ACCOUNTANT
+        ? req.header('X-User-ID') || decoded.businessOwnerId
+        : decoded.userId;
+
+      if (!targetUserId) {
+        return res.status(400).json({
+          error: 'Missing business owner ID. Make sure you\'ve selected a client.'
+        });
+      }
+
+      // Verify accountant access if applicable
+      if (decoded.roleType === UserRoleType.ACCOUNTANT) {
+        const hasAccess = await UserRoles.findOne({
+          user: decoded.userId,
+          businessOwner: targetUserId,
+          roleType: UserRoleType.ACCOUNTANT,
+          status: 'active'
+        });
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            error: 'You do not have access to modify this user\'s plaid items'
+          });
+        }
+      }
+
+      const { plaidItemId } = req.params;
+      const updateData = req.body;
+
+      if (!plaidItemId || !updateData) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Find the plaid item
+      let plaidItem = await PlaidItem.findOne({
+        accounts: { $elemMatch: { accountId: plaidItemId } },
+        userId: targetUserId,
+      });
+
+      console.log('Updating Plaid item:', plaidItem);
+
+      if (!plaidItem) {
+        return res.status(404).json({ error: 'Plaid item not found' });
+      }
+
+      // Find the account index
+      const accountIndex = plaidItem.accounts.findIndex(
+        account => account.accountId === plaidItemId
+      );
+
+      console.log(accountIndex)
+
+      if (accountIndex === -1) {
+        return res.status(404).json({ error: 'Account not found in Plaid item' });
+      }
+
+      // Update the account with new data
+      plaidItem.accounts[accountIndex] = {
+        ...plaidItem.accounts[accountIndex],
+        ...updateData,
+        lastUpdated: new Date()
+      };
+
+      await plaidItem.save();
+
+      res.json({
+        message: 'Plaid item updated successfully',
+        account: plaidItem.accounts[accountIndex]
+      });
+
+    } catch (error) {
+      if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+      if (error instanceof jwt.TokenExpiredError) {
+        return res.status(401).json({ error: 'Token expired' });
+      }
+
+      console.error('[updatePlaidItem] Error:', error);
+      return res.status(500).json({ error: 'Failed to update Plaid item' });
     }
   },
 

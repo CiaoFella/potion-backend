@@ -338,7 +338,6 @@ async getTransactions(
 
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, config.jwtSecret) as AuthJwtPayload;
-    console.log('[getTransactions] Decoded token:', decoded);
 
     // Determine which user's transactions to fetch
     const targetUserId = decoded.roleType === UserRoleType.ACCOUNTANT

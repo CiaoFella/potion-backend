@@ -144,6 +144,34 @@ router.delete('/items/:plaidItemId', auth, plaidController.deletePlaidItem);
 
 /**
  * @swagger
+ * /api/plaid/item/{plaidItemId}:
+ *   put:
+ *     summary: Update a Plaid item
+ *     description: Updates a Plaid item and its associated data
+ *     tags: [Plaid]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: plaidItemId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plaid item updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ */
+router.put('/items/:plaidItemId', auth, plaidController.updatePlaidItem);
+
+/**
+ * @swagger
  * /api/plaid/webhook:
  *   post:
  *     summary: Handle Plaid webhook
