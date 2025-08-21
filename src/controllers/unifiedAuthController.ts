@@ -1072,6 +1072,7 @@ export const unifiedForgotPassword = async (
 export const sendRoleInvitationEmail = async (
   user: any,
   userRole: any,
+  isNew = true,
 ): Promise<void> => {
   try {
     // Get business owner info
@@ -1084,12 +1085,12 @@ export const sendRoleInvitationEmail = async (
         'Your Business Partner'
       : 'Your Business Partner';
 
-    const setupLink = `${config.frontURL}/setup-password/${userRole.inviteToken}`;
+    const setupLink = isNew ?`${config.frontURL}/setup-password/${userRole.inviteToken}` : `${config.frontURL}`;
 
     let subject = '';
     let htmlContent = '';
 
-    if (userRole?.accountant) {
+    if (userRole?.accountant && isNew) {
       subject = `Invitation: Join ${businessOwnerName}'s team as Accountant`;
       htmlContent = `
         <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
@@ -1098,6 +1099,19 @@ export const sendRoleInvitationEmail = async (
           <p>You'll have access to their financial data and can help manage their accounting needs.</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${setupLink}" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Accept Invitation & Set Password</a>
+          </div>
+          <p style="color: #666; font-size: 14px;">This invitation will expire in 7 days. If you have any questions, contact ${businessOwnerName} directly.</p>
+        </div>
+      `;
+    } else if (userRole?.accountant) {
+      subject = `Invitation: Join ${businessOwnerName}'s team as Accountant`;
+      htmlContent = `
+        <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1>Hello!</h1>
+          <p><strong>${businessOwnerName}</strong> has invited you to join their team as an <strong>Accountant</strong> on Potion.</p>
+          <p>You'll have access to their financial data and can help manage their accounting needs.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${setupLink}" style="background: #1EC64C; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Accept Invitation</a>
           </div>
           <p style="color: #666; font-size: 14px;">This invitation will expire in 7 days. If you have any questions, contact ${businessOwnerName} directly.</p>
         </div>

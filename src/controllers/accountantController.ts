@@ -8,6 +8,8 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/config';
 import { AccessLevel, UserRoles, UserRoleType } from '../models/UserRoles';
 import { sendRoleInvitationEmail } from './unifiedAuthController';
+import mongoose from 'mongoose';
+import { access } from 'fs';
 
 function generateInviteToken(userId: string, businessOwnerId: string) {
   return require('jsonwebtoken').sign(
@@ -24,14 +26,15 @@ enum roleTranslation {
 
 export const inviteAccountant = async (
   req: Request & { user?: { userId: string } },
-  res: Response,
-): Promise<any> => {
+  res: Response
+): Promise<void> => {
   try {
     const { email, accessLevel, note } = req.body;
     const businessOwnerId = req.user?.userId;
 
     if (!businessOwnerId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
     }
 
     // Find or create the accountant user
@@ -48,37 +51,49 @@ export const inviteAccountant = async (
       await accountantUser.save();
     }
 
+    // Find existing role of the same type (ACCOUNTANT)
+    const existingAccountantRole = await UserRoles.findOne({
+      user: accountantUser._id,
+      roleType: UserRoleType.ACCOUNTANT,
+    });
+
     // Check if a UserRoles entry already exists for this accountant and business owner
     let userRole = await UserRoles.findOne({
       user: accountantUser._id,
       businessOwner: businessOwnerId,
-      roleType: UserRoleType.ACCOUNTANT,
-      deleted: { $ne: true },
+      roleType: UserRoleType.ACCOUNTANT
     });
 
+    if (userRole?.status === 'active') {
+      res.status(400).json({ message: 'This accountant already has access to your account.' });
+      return;
+    }
+
+    const inviteToken = generateInviteToken(accountantUser._id.toString(), businessOwnerId);
+
     if (userRole) {
-      if (userRole.status === 'active') {
-        return res.status(400).json({ message: 'This accountant already has access to your account.' });
-      }
-      // If previously deleted or pending, update and resend invite
+      // Update existing role
       userRole.status = 'invited';
       userRole.accessLevel = roleTranslation[accessLevel];
       userRole.invitedAt = new Date();
-      userRole.invitedBy = (businessOwnerId as any);
-      userRole.deleted = false;
-      // Generate new tokens
-      const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
+      userRole.invitedBy = new mongoose.Types.ObjectId(businessOwnerId);
       userRole.inviteToken = inviteToken;
       userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      userRole.passwordSetupToken = inviteToken;
-      userRole.passwordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      
+      // If there's an existing accountant role, copy its password
+      if (existingAccountantRole?.password) {
+        userRole.password = existingAccountantRole.password;
+        userRole.isPasswordSet = true;
+      }
+
       await userRole.save();
       await sendRoleInvitationEmail(accountantUser, userRole);
-      return res.status(200).json({ message: 'Accountant invitation resent.' });
+      
+      res.status(200).json({ message: 'Accountant invitation resent.' });
+      return;
     }
 
-    // Create new UserRoles entry for this accountant
-    const inviteToken = generateInviteToken(accountantUser._id.toHexString(), businessOwnerId);
+    // Create new UserRoles entry
     userRole = new UserRoles({
       user: accountantUser._id,
       email: accountantUser.email,
@@ -87,15 +102,17 @@ export const inviteAccountant = async (
       status: 'invited',
       inviteToken,
       inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      passwordSetupToken: inviteToken,
-      passwordSetupTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       invitedBy: businessOwnerId,
       invitedAt: new Date(),
       businessOwner: businessOwnerId,
       note,
+      // Copy password from existing accountant role if it exists
+      password: existingAccountantRole?.password,
+      isPasswordSet: existingAccountantRole?.password ? true : false
     });
+
     await userRole.save();
-    await sendRoleInvitationEmail(accountantUser, userRole);
+    await sendRoleInvitationEmail(accountantUser, userRole, !existingAccountantRole);
 
     res.status(201).json({
       message: 'Accountant invited successfully',
@@ -107,11 +124,12 @@ export const inviteAccountant = async (
         },
         accessLevel: userRole.accessLevel,
         status: userRole.status,
+        needsPasswordSetup: !existingAccountantRole
       },
     });
+
   } catch (error) {
-    console.error('Error inviting accountant:', error);
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -281,8 +299,6 @@ export const getAccountants = async (
       businessOwner: userId,
     }).populate('user', 'firstName lastName email');
 
-    console.log('User accesses found:', userAccesses[0]);
-
     res.json(
       userAccesses.map((access) => ({
         id: access._id,
@@ -308,56 +324,27 @@ export const updateAccountantAccess = async (
   try {
     const { accessId } = req.params;
     const { accessLevel, name } = req.body;
-    const userId = req.user?.userId;
+      const userId = req.user?.userId;
 
-    console.log('[updateAccountantAccess] Received data:', {
-      accessId,
-      accessLevel,
-      name,
-      userId,
-    });
+      console.log('[updateAccountantAccess] Received data:', {
+        accessId,
+        accessLevel,
+        name,
+        userId,
+      });
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const accountant = await Accountant.findById(accessId);
-    if (!accountant) {
+    const userRole = (await UserRoles.findOne({ _id: accessId, businessOwner: userId }).populate('user', '_id firstName lastName email'));
+    if (!userRole) {
       return res.status(404).json({ message: 'Accountant not found' });
     }
 
-    console.log(
-      '[updateAccountantAccess] Current accountant name:',
-      accountant.name,
-    );
-    console.log('[updateAccountantAccess] New name to set:', name);
-
-    // Only update name if explicitly provided and not empty
-    if (name && name.trim() !== '') {
-      accountant.name = name.trim();
-    }
-
-    const userAccesses = await UserAccountantAccess.find({
-      accountant: accountant._id,
-      user: userId,
-    });
-
-    // Use Promise.all to wait for all updates to complete
-    await Promise.all(
-      userAccesses.map(async (access) => {
-        access.accessLevel = accessLevel;
-        await access.save();
-      }),
-    );
-
-    await accountant.save();
-
-    console.log(
-      '[updateAccountantAccess] Saved accountant name:',
-      accountant.name,
-    );
-
-    res.json({ message: 'Accountant updated successfully', data: accountant });
+    userRole.accessLevel = roleTranslation[accessLevel];
+    userRole.save()
+    res.json({ message: 'Accountant updated successfully', data: userRole });
   } catch (error) {
     console.error('Error updating accountant access:', error);
     res.status(500).json({ message: 'Server error' });
