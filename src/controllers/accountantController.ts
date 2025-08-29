@@ -37,103 +37,144 @@ export const inviteAccountant = async (
       return;
     }
 
-    // First check if user exists with this email
-    let accountantUser = await User.findOne({ email: email.toLowerCase() });
-    
-    if (!accountantUser) {
-      // Create new user with temporary values
-      const tempPassword = crypto.randomBytes(32).toString('hex');
-      const hashedPassword = await bcrypt.hash(tempPassword, 10);
-      
-      accountantUser = new User({
-        email: email.toLowerCase(),
-        isActive: false,
-        firstName: 'Temporary',
-        lastName: 'Name',
-        password: hashedPassword,
-        authProvider: 'password',
-        isPasswordSet: false,
-        roleType: UserRoleType.ACCOUNTANT
-      });
-      await accountantUser.save();
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ message: 'Email is required' });
+      return;
     }
 
-    // Generate invite token
-    const inviteToken = generateInviteToken(accountantUser._id.toString(), businessOwnerId);
+    const mappedAccessLevel = roleTranslation[accessLevel as keyof typeof roleTranslation];
+    if (!mappedAccessLevel) {
+      res.status(400).json({ message: 'Invalid access level. Use "read" or "edit".' });
+      return;
+    }
 
-    // Check for existing role for this business owner
+    const ownerObjectId = new mongoose.Types.ObjectId(businessOwnerId);
+
+    // Find or create the accountant user
+    let accountantUser = await User.findOne({ email: email.toLowerCase() });
+    if (!accountantUser) {
+      try {
+        const fullName = typeof req.body?.name === 'string' ? req.body.name : '';
+        const parts = fullName.trim().split(/\s+/).filter(Boolean);
+        const firstName = parts[0] || '';
+        const lastName = parts.slice(1).join(' ') || '';
+
+        // Required by schema: store a secure placeholder password
+        const randomPassword = crypto.randomBytes(24).toString('hex');
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+        accountantUser = new User({
+          email: email.toLowerCase(),
+          isActive: false,
+          firstName,
+          lastName,
+          authProvider: 'password',
+          // Keep false so the app can prompt for setup if needed
+          isPasswordSet: false,
+          password: hashedPassword, // satisfy schema requirement
+        });
+
+        await accountantUser.save();
+      } catch (e: any) {
+        console.error('[inviteAccountant] Failed to create User:', e);
+        res.status(400).json({ message: 'Failed to create user', error: e?.message });
+        return;
+      }
+    }
+
+    // Find any existing ACCOUNTANT role for this user (to reuse its password if available)
+    const existingAccountantRole = await UserRoles.findOne({
+      user: accountantUser._id,
+      roleType: UserRoleType.ACCOUNTANT,
+    });
+
+    // Check if a role already exists for this business owner
     let userRole = await UserRoles.findOne({
       user: accountantUser._id,
-      businessOwner: businessOwnerId,
+      businessOwner: ownerObjectId,
       roleType: UserRoleType.ACCOUNTANT
     });
 
     if (userRole?.status === 'active') {
-      res.status(400).json({ message: 'This accountant already has access to your account' });
+      res.status(400).json({ message: 'This accountant already has access to your account.' });
       return;
     }
 
-    // Find any existing active role for this accountant to reuse password
-    const existingActiveRole = await UserRoles.findOne({
-      user: accountantUser._id,
-      roleType: UserRoleType.ACCOUNTANT,
-      status: 'active',
-      isPasswordSet: true
-    });
+    const inviteToken = generateInviteToken(accountantUser._id.toString(), businessOwnerId);
+    const rolePasswordToReuse =
+      existingAccountantRole?.password || (accountantUser as any).password;
 
-    if (!userRole) {
-      userRole = new UserRoles({
-        user: accountantUser._id,
-        email: accountantUser.email,
-        roleType: UserRoleType.ACCOUNTANT,
-        accessLevel: roleTranslation[accessLevel],
-        status: 'invited',
-        inviteToken,
-        inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        invitedBy: businessOwnerId,
-        invitedAt: new Date(),
-        businessOwner: businessOwnerId,
-        note,
-        // Reuse password if exists
-        password: existingActiveRole?.password || undefined,
-        isPasswordSet: !!existingActiveRole?.password
-      });
-    } else {
+    if (userRole) {
+      // Update existing role
       userRole.status = 'invited';
-      userRole.accessLevel = roleTranslation[accessLevel];
+      (userRole.accessLevel as any) = mappedAccessLevel;
+      userRole.invitedAt = new Date();
+      userRole.invitedBy = ownerObjectId;
       userRole.inviteToken = inviteToken;
       userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      (userRole as any).note = note;
-      if (existingActiveRole?.password) {
-        userRole.password = existingActiveRole.password;
+
+      if (rolePasswordToReuse) {
+        userRole.password = rolePasswordToReuse;
         userRole.isPasswordSet = true;
       }
+
+      try {
+        await userRole.save();
+      } catch (e: any) {
+        console.error('[inviteAccountant] Failed to update UserRole:', e);
+        res.status(400).json({ message: 'Failed to update invitation', error: e?.message });
+        return;
+      }
+
+      await sendRoleInvitationEmail(accountantUser, userRole);
+      res.status(200).json({ message: 'Accountant invitation resent.' });
+      return;
     }
 
-    await userRole.save();
-    await sendRoleInvitationEmail(accountantUser, userRole, !existingActiveRole);
+    // Create new UserRoles entry
+    userRole = new UserRoles({
+      user: accountantUser._id,
+      email: accountantUser.email,
+      roleType: UserRoleType.ACCOUNTANT,
+      accessLevel: mappedAccessLevel,
+      status: 'invited',
+      inviteToken,
+      inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      invitedBy: ownerObjectId,
+      invitedAt: new Date(),
+      businessOwner: ownerObjectId,
+      note,
+      password: rolePasswordToReuse,
+      isPasswordSet: Boolean(rolePasswordToReuse),
+    });
+
+    try {
+      await userRole.save();
+    } catch (e: any) {
+      console.error('[inviteAccountant] Failed to create UserRole:', e);
+      res.status(400).json({ message: 'Failed to create accountant role', error: e?.message });
+      return;
+    }
+
+    await sendRoleInvitationEmail(accountantUser, userRole, !existingAccountantRole);
 
     res.status(201).json({
       message: 'Accountant invited successfully',
       userRole: {
         id: userRole._id,
-        accountant: {
-          id: accountantUser._id,
-          email: accountantUser.email,
-        },
+        accountant: { id: accountantUser._id, email: accountantUser.email },
         accessLevel: userRole.accessLevel,
         status: userRole.status,
-        needsPasswordSetup: !existingActiveRole
+        // true only if there was no prior accountant role (i.e., no known role password)
+        needsPasswordSetup: !existingAccountantRole,
       },
     });
-
-  } catch (error) {
-    console.error('[inviteAccountant] Error:', error);
+  } catch (error: any) {
+    console.error('[inviteAccountant] Unexpected error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Accept invitation and set up accountant account
 export const setupAccountantAccount = async (
   req: Request,
   res: Response,
