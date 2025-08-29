@@ -37,24 +37,19 @@ export const inviteAccountant = async (
       return;
     }
 
-    const existingAccountantRole = await UserRoles.findOne({
-      email: email.toLowerCase(),
-      roleType: UserRoleType.ACCOUNTANT,
-      status: 'active',
-      isPasswordSet: true
-    });
-
+    // First check if user exists with this email
     let accountantUser = await User.findOne({ email: email.toLowerCase() });
     
     if (!accountantUser) {
+      // Create new user with temporary values
       const tempPassword = crypto.randomBytes(32).toString('hex');
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
       
       accountantUser = new User({
         email: email.toLowerCase(),
         isActive: false,
-        firstName: req.body.name.split(' ')[0] || '',
-        lastName: req.body.name.split(' ')[1] || '',
+        firstName: 'Temporary',
+        lastName: 'Name',
         password: hashedPassword,
         authProvider: 'password',
         isPasswordSet: false,
@@ -63,8 +58,10 @@ export const inviteAccountant = async (
       await accountantUser.save();
     }
 
+    // Generate invite token
     const inviteToken = generateInviteToken(accountantUser._id.toString(), businessOwnerId);
 
+    // Check for existing role for this business owner
     let userRole = await UserRoles.findOne({
       user: accountantUser._id,
       businessOwner: businessOwnerId,
@@ -75,6 +72,14 @@ export const inviteAccountant = async (
       res.status(400).json({ message: 'This accountant already has access to your account' });
       return;
     }
+
+    // Find any existing active role for this accountant to reuse password
+    const existingActiveRole = await UserRoles.findOne({
+      user: accountantUser._id,
+      roleType: UserRoleType.ACCOUNTANT,
+      status: 'active',
+      isPasswordSet: true
+    });
 
     if (!userRole) {
       userRole = new UserRoles({
@@ -89,8 +94,9 @@ export const inviteAccountant = async (
         invitedAt: new Date(),
         businessOwner: businessOwnerId,
         note,
-        password: existingAccountantRole?.password,
-        isPasswordSet: existingAccountantRole?.password ? true : false
+        // Reuse password if exists
+        password: existingActiveRole?.password || undefined,
+        isPasswordSet: !!existingActiveRole?.password
       });
     } else {
       userRole.status = 'invited';
@@ -98,12 +104,14 @@ export const inviteAccountant = async (
       userRole.inviteToken = inviteToken;
       userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       (userRole as any).note = note;
-      userRole.password = existingAccountantRole?.password;
-      userRole.isPasswordSet = existingAccountantRole?.password ? true : false;
+      if (existingActiveRole?.password) {
+        userRole.password = existingActiveRole.password;
+        userRole.isPasswordSet = true;
+      }
     }
 
     await userRole.save();
-    await sendRoleInvitationEmail(accountantUser, userRole, !existingAccountantRole);
+    await sendRoleInvitationEmail(accountantUser, userRole, !existingActiveRole);
 
     res.status(201).json({
       message: 'Accountant invited successfully',
@@ -115,7 +123,7 @@ export const inviteAccountant = async (
         },
         accessLevel: userRole.accessLevel,
         status: userRole.status,
-        needsPasswordSetup: !existingAccountantRole
+        needsPasswordSetup: !existingActiveRole
       },
     });
 
