@@ -800,7 +800,7 @@ const handleSubscriptionResumed = async (subscription: Stripe.Subscription) => {
 };
 
 // React Email-based email sending functions
-const sendPasswordSetupEmail = async (
+export const sendPasswordSetupEmail = async (
   email: string,
   firstName: string,
   token: string,

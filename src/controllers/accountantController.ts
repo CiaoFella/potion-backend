@@ -10,6 +10,7 @@ import { AccessLevel, UserRoles, UserRoleType } from '../models/UserRoles';
 import { sendRoleInvitationEmail } from './unifiedAuthController';
 import mongoose from 'mongoose';
 import { access } from 'fs';
+import { sendPasswordSetupEmail } from './webhookController';
 
 function generateInviteToken(userId: string, businessOwnerId: string) {
   return require('jsonwebtoken').sign(
@@ -62,19 +63,33 @@ export const inviteAccountant = async (
         // Required by schema: store a secure placeholder password
         const randomPassword = crypto.randomBytes(24).toString('hex');
         const hashedPassword = await bcrypt.hash(randomPassword, 10);
-
+        
+        const passwordSetupToken = crypto.randomBytes(32).toString('hex');
+        const passwordSetupTokenExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+        
         accountantUser = new User({
           email: email.toLowerCase(),
           isActive: false,
           firstName,
           lastName,
           authProvider: 'password',
-          // Keep false so the app can prompt for setup if needed
           isPasswordSet: false,
           password: hashedPassword, // satisfy schema requirement
+          passwordSetupTokenExpiry,
+          passwordSetupToken,
         });
 
         await accountantUser.save();
+
+        try {
+          await sendPasswordSetupEmail(email, firstName, passwordSetupToken);
+        } catch (emailError) {
+          console.error(
+          `❌ [ACcountant Invitation] Failed to send password setup email to: ${email}`,
+          emailError,
+        );
+      }
+        
       } catch (e: any) {
         console.error('[inviteAccountant] Failed to create User:', e);
         res.status(400).json({ message: 'Failed to create user', error: e?.message });
@@ -82,13 +97,11 @@ export const inviteAccountant = async (
       }
     }
 
-    // Find any existing ACCOUNTANT role for this user (to reuse its password if available)
     const existingAccountantRole = await UserRoles.findOne({
       user: accountantUser._id,
       roleType: UserRoleType.ACCOUNTANT,
     });
 
-    // Check if a role already exists for this business owner
     let userRole = await UserRoles.findOne({
       user: accountantUser._id,
       businessOwner: ownerObjectId,
