@@ -85,7 +85,7 @@ export const inviteAccountant = async (
           await sendPasswordSetupEmail(email, firstName, passwordSetupToken);
         } catch (emailError) {
           console.error(
-          `❌ [ACcountant Invitation] Failed to send password setup email to: ${email}`,
+          `❌ [Acountant Invitation] Failed to send password setup email to: ${email}`,
           emailError,
         );
       }
@@ -113,7 +113,8 @@ export const inviteAccountant = async (
       return;
     }
 
-    const inviteToken = generateInviteToken(accountantUser._id.toString(), businessOwnerId);
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+;
     const rolePasswordToReuse =
       existingAccountantRole?.password || (accountantUser as any).password;
 
@@ -195,78 +196,44 @@ export const setupAccountantAccount = async (
   try {
     const { token, password } = req.body;
 
-    // Find the user-accountant access relationship with this token
-    const userAccess = await UserAccountantAccess.findOne({
+    // Look up the invitation in UserRoles (where inviteAccountant stored it)
+    const userRole = await UserRoles.findOne({
       inviteToken: token,
       inviteTokenExpiry: { $gt: new Date() },
-      status: 'pending',
-    }).populate('accountant');
+      roleType: UserRoleType.ACCOUNTANT,
+      status: 'invited',
+    }).populate('user');
 
-    if (!userAccess) {
-      return res
-        .status(400)
-        .json({ message: 'Invalid or expired invitation token' });
+    if (!userRole) {
+      return res.status(400).json({ message: 'Invalid or expired invitation token' });
     }
 
-    const accountant = userAccess.accountant as any;
+    const user = userRole.user as any;
 
-    // Check if accountant already has a password set
-    const isNewAccountant = !accountant.password;
-
-    if (isNewAccountant) {
-      // Hash the password for new accountant
+    // If a password is provided and not yet set, set it now for both user and role
+    if (password && (!user?.password || !userRole.isPasswordSet)) {
       const hashedPassword = await bcrypt.hash(password, 10);
-      accountant.password = hashedPassword;
-      await accountant.save();
+      user.password = hashedPassword;
+      user.isPasswordSet = true;
+      await user.save();
+
+      userRole.password = hashedPassword;
+      userRole.isPasswordSet = true;
     }
 
-    // Update the user-accountant access relationship
-    userAccess.status = 'active';
-    userAccess.inviteToken = undefined;
-    userAccess.inviteTokenExpiry = undefined;
-    await userAccess.save();
+    // Activate role and clear invite token
+    userRole.status = 'active';
+    userRole.inviteToken = undefined as any;
+    userRole.inviteTokenExpiry = undefined as any;
+    await userRole.save();
 
-    // Send login ready email for new accountants
-    if (isNewAccountant) {
-      // Get all active clients for this accountant
-      const userAccesses = await UserAccountantAccess.find({
-        accountant: accountant._id,
-        status: 'active',
-      }).populate('user');
-
-      const clientNames = userAccesses.map((access) =>
-        `${(access.user as any).firstName} ${(access.user as any).lastName}`.trim(),
-      );
-
-      await sendEmail({
-        to: accountant.email,
-        subject: 'Your Potion accountant access is ready - You can now login!',
-        html: `
-                <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1>Hi ${accountant.name.split(' ')[0] || accountant.name},</h1>
-                    <p><strong>Great news!</strong> Your accountant access has been set up successfully.</p>
-                    <p>Your Potion account is now ready! You can login and access your client's financial data and reports anytime.</p>
-                    ${clientNames.length > 0
-            ? `<p><strong>You have access to ${clientNames.length} client${clientNames.length > 1 ? 's' : ''}:</strong>
-                    ${clientNames.slice(0, 3).join(', ')}${clientNames.length > 3 ? ` and ${clientNames.length - 3} more` : ''}</p>`
-            : ''
-          }
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${config.frontURL}/login" style="background: #1EC64C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Login to Your Dashboard</a>
-                    </div>
-                    <p style="font-size: 14px; color: #666;">Need help? Just reply to this email - our support team is here to assist you.</p>
-                </div>
-            `,
-      });
-    }
-
-    res.json({
-      message: isNewAccountant
-        ? 'Account setup successfully. You can now log in.'
-        : 'Invitation accepted successfully.',
+    return res.json({
+      message: userRole.isPasswordSet
+        ? 'Invitation accepted successfully.'
+        : 'Account setup successfully. You can now log in.',
     });
   } catch (error) {
-    console.error('Error setting up accountant account:', error);
+    console.error('[setupAccountantAccount] Error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
