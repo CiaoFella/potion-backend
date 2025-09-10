@@ -905,6 +905,7 @@ export const validatePasswordToken = async (
   try {
     const { token } = req.params;
 
+    console.log("Validating token:", token);
     // First, try to find token in the new unified UserRoles system
     let userRole = await UserRoles.findOne({
       passwordSetupToken: token,

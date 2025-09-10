@@ -63,10 +63,11 @@ export const inviteAccountant = async (
         // Required by schema: store a secure placeholder password
         const randomPassword = crypto.randomBytes(24).toString('hex');
         const hashedPassword = await bcrypt.hash(randomPassword, 10);
-        
+
+        // Optional legacy password setup (kept for backwards-compat)
         const passwordSetupToken = crypto.randomBytes(32).toString('hex');
-        const passwordSetupTokenExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
-        
+        const passwordSetupTokenExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
         accountantUser = new User({
           email: email.toLowerCase(),
           isActive: false,
@@ -74,9 +75,9 @@ export const inviteAccountant = async (
           lastName,
           authProvider: 'password',
           isPasswordSet: false,
-          password: hashedPassword, // satisfy schema requirement
-          passwordSetupTokenExpiry,
+          password: hashedPassword,
           passwordSetupToken,
+          passwordSetupTokenExpiry,
         });
 
         await accountantUser.save();
@@ -84,12 +85,8 @@ export const inviteAccountant = async (
         try {
           await sendPasswordSetupEmail(email, firstName, passwordSetupToken);
         } catch (emailError) {
-          console.error(
-          `❌ [Acountant Invitation] Failed to send password setup email to: ${email}`,
-          emailError,
-        );
-      }
-        
+          console.error(`❌ [Acountant Invitation] Failed to send password setup email to: ${email}`, emailError);
+        }
       } catch (e: any) {
         console.error('[inviteAccountant] Failed to create User:', e);
         res.status(400).json({ message: 'Failed to create user', error: e?.message });
@@ -105,7 +102,7 @@ export const inviteAccountant = async (
     let userRole = await UserRoles.findOne({
       user: accountantUser._id,
       businessOwner: ownerObjectId,
-      roleType: UserRoleType.ACCOUNTANT
+      roleType: UserRoleType.ACCOUNTANT,
     });
 
     if (userRole?.status === 'active') {
@@ -113,8 +110,14 @@ export const inviteAccountant = async (
       return;
     }
 
+    // Tokens for invitation and password setup on the role
     const inviteToken = crypto.randomBytes(32).toString('hex');
-;
+    const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const rolePasswordSetupToken = crypto.randomBytes(32).toString('hex');
+    const rolePasswordSetupTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Prefer an existing role password; else reuse the user's password
     const rolePasswordToReuse =
       existingAccountantRole?.password || (accountantUser as any).password;
 
@@ -125,7 +128,11 @@ export const inviteAccountant = async (
       userRole.invitedAt = new Date();
       userRole.invitedBy = ownerObjectId;
       userRole.inviteToken = inviteToken;
-      userRole.inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      userRole.inviteTokenExpiry = inviteTokenExpiry;
+
+      // Add password-setup tokens on the role for unified flow
+      (userRole as any).passwordSetupToken = rolePasswordSetupToken;
+      (userRole as any).passwordSetupTokenExpiry = rolePasswordSetupTokenExpiry;
 
       if (rolePasswordToReuse) {
         userRole.password = rolePasswordToReuse;
@@ -153,14 +160,17 @@ export const inviteAccountant = async (
       accessLevel: mappedAccessLevel,
       status: 'invited',
       inviteToken,
-      inviteTokenExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      inviteTokenExpiry,
       invitedBy: ownerObjectId,
       invitedAt: new Date(),
       businessOwner: ownerObjectId,
       note,
       password: rolePasswordToReuse,
       isPasswordSet: Boolean(rolePasswordToReuse),
-    });
+      // Include role password setup tokens for the email link validation
+      passwordSetupToken: rolePasswordSetupToken,
+      passwordSetupTokenExpiry: rolePasswordSetupTokenExpiry,
+    } as any);
 
     try {
       await userRole.save();
@@ -179,7 +189,6 @@ export const inviteAccountant = async (
         accountant: { id: accountantUser._id, email: accountantUser.email },
         accessLevel: userRole.accessLevel,
         status: userRole.status,
-        // true only if there was no prior accountant role (i.e., no known role password)
         needsPasswordSetup: !existingAccountantRole,
       },
     });
