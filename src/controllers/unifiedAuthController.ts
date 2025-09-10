@@ -904,8 +904,6 @@ export const validatePasswordToken = async (
 ): Promise<void> => {
   try {
     const { token } = req.params;
-
-    console.log("Validating token:", token);
     // First, try to find token in the new unified UserRoles system
     let userRole = await UserRoles.findOne({
       passwordSetupToken: token,
@@ -1086,7 +1084,10 @@ export const sendRoleInvitationEmail = async (
         'Your Business Partner'
       : 'Your Business Partner';
 
-    const setupLink = isNew ?`${config.frontURL}/setup-password/${userRole.inviteToken}` : `${config.frontURL}`;
+    const tokenForLink = userRole.passwordSetupToken || userRole.inviteToken;
+    const setupLink = isNew
+      ? `${config.frontURL}/setup-password/${tokenForLink}`
+      : `${config.frontURL}`;
 
     let subject = '';
     let htmlContent = '';
