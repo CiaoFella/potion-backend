@@ -6,7 +6,7 @@ export const agenda = new Agenda({ db: { address: mongoConnectionString } });
 
 agenda.define(
     "predict category",
-    { concurrency: 5, priority: 10 },
+    { concurrency: 1, priority: 10 },
     async (job, done) => {
         try {
             const transaction = (job.attrs.data as any).transaction;
