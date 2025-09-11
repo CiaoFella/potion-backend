@@ -6,13 +6,11 @@ export const agenda = new Agenda({ db: { address: mongoConnectionString } });
 
 agenda.define(
     "predict category",
-    { concurrency: 10, priority: 10 },
+    { concurrency: 5, priority: 10 },
     async (job, done) => {
         try {
             const transaction = (job.attrs.data as any).transaction;
-            setTimeout(async () => {
             await predictCategory(transaction);
-            }, 50); // wait 50 milliseconds to avoid rate limit
             done();
         } catch (error) {
             job.fail(error).save();
