@@ -8,48 +8,32 @@ async function calculateTax(
   userId: string,
 ): Promise<{ taxAmount: number; effectiveRate: number }> {
   try {
-    // Get user's default tax configuration
     const taxConfig = await TaxRate.findOne({
       userId: new mongoose.Types.ObjectId(userId),
       isDefault: true,
     });
 
-    // If no tax configuration found, use 0% tax rate
-    if (!taxConfig) {
-      return { taxAmount: 0, effectiveRate: 0 };
-    }
-
-    // For negative income, no tax applies
-    if (income <= 0) {
-      return { taxAmount: 0, effectiveRate: 0 };
-    }
+    if (!taxConfig) return { taxAmount: 0, effectiveRate: 0 };
+    if (income <= 0) return { taxAmount: 0, effectiveRate: 0 };
 
     if (taxConfig.type === 'Flat') {
-      // Simple flat rate calculation
-      const rate = taxConfig.flatRate || 0; // Default to 0 if not set
+      const rate = taxConfig.flatRate || 0;
       const taxAmount = income * (rate / 100);
-      return {
-        taxAmount,
-        effectiveRate: rate,
-      };
+      return { taxAmount, effectiveRate: rate };
     } else {
-      // Progressive tax calculation
       let remainingIncome = income;
       let totalTax = 0;
 
-      // If no brackets defined, use 0% tax
       if (!taxConfig.brackets || taxConfig.brackets.length === 0) {
         return { taxAmount: 0, effectiveRate: 0 };
       }
 
       for (const bracket of taxConfig.brackets) {
         if (remainingIncome <= 0) break;
-
         const bracketSize = bracket.maxIncome
           ? Math.min(bracket.maxIncome - bracket.minIncome, remainingIncome)
           : remainingIncome;
-
-        const rate = bracket.rate || 0; // Default to 0 if rate not set
+        const rate = bracket.rate || 0;
         totalTax += bracketSize * (rate / 100);
         remainingIncome -= bracketSize;
       }
@@ -61,12 +45,11 @@ async function calculateTax(
     }
   } catch (error) {
     console.error('Error calculating tax:', error);
-    // On any error, default to 0% tax
     return { taxAmount: 0, effectiveRate: 0 };
   }
 }
 
-// Move generateProfitAndLoss outside as a standalone function
+// Profit & Loss
 async function generateProfitAndLoss(
   userId: string,
   startDate: Date,
@@ -76,14 +59,8 @@ async function generateProfitAndLoss(
     reportName: 'Profit & Loss Statement',
     period: `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`,
     year: startDate.getFullYear(),
-    revenue: {
-      byCategory: {},
-      totalRevenue: 0,
-    },
-    expenses: {
-      byCategory: {},
-      totalExpenses: 0,
-    },
+    revenue: { byCategory: {} as Record<string, number>, totalRevenue: 0 },
+    expenses: { byCategory: {} as Record<string, number>, totalExpenses: 0 },
     summary: {
       totalRevenue: 0,
       totalExpenses: 0,
@@ -94,7 +71,6 @@ async function generateProfitAndLoss(
     },
   };
 
-  // Get all unique categories
   const categories = await Transaction.aggregate([
     {
       $match: {
@@ -102,26 +78,18 @@ async function generateProfitAndLoss(
         date: { $gte: startDate, $lt: endDate },
       },
     },
-    {
-      $group: {
-        _id: {
-          type: '$type',
-          category: '$category',
-        },
-      },
-    },
+    { $group: { _id: { type: '$type', category: '$category' } } },
   ]);
 
-  // Initialize category totals
   categories.forEach((cat) => {
+    const key = cat._id.category || 'Uncategorized';
     if (cat._id.type === 'Income') {
-      profitLoss.revenue.byCategory[cat._id.category || 'Uncategorized'] = 0;
+      profitLoss.revenue.byCategory[key] = 0;
     } else if (cat._id.type === 'Expense') {
-      profitLoss.expenses.byCategory[cat._id.category || 'Uncategorized'] = 0;
+      profitLoss.expenses.byCategory[key] = 0;
     }
   });
 
-  // Get transactions with amounts
   const transactions = await Transaction.aggregate([
     {
       $match: {
@@ -131,35 +99,28 @@ async function generateProfitAndLoss(
     },
     {
       $group: {
-        _id: {
-          type: '$type',
-          category: '$category',
-        },
+        _id: { type: '$type', category: '$category' },
         total: { $sum: '$amount' },
       },
     },
   ]);
 
-  // Process transactions
-  transactions.forEach((transaction) => {
-    const category = transaction._id.category || 'Uncategorized';
-
-    if (transaction._id.type === 'Income') {
-      profitLoss.revenue.byCategory[category] = transaction.total;
-      profitLoss.revenue.totalRevenue += transaction.total;
-      profitLoss.summary.totalRevenue += transaction.total;
-    } else if (transaction._id.type === 'Expense') {
-      profitLoss.expenses.byCategory[category] = transaction.total;
-      profitLoss.expenses.totalExpenses += transaction.total;
-      profitLoss.summary.totalExpenses += transaction.total;
+  transactions.forEach((t) => {
+    const cat = t._id.category || 'Uncategorized';
+    if (t._id.type === 'Income') {
+      profitLoss.revenue.byCategory[cat] = t.total;
+      profitLoss.revenue.totalRevenue += t.total;
+      profitLoss.summary.totalRevenue += t.total;
+    } else if (t._id.type === 'Expense') {
+      profitLoss.expenses.byCategory[cat] = t.total;
+      profitLoss.expenses.totalExpenses += t.total;
+      profitLoss.summary.totalExpenses += t.total;
     }
   });
 
-  // Calculate income before tax
   profitLoss.summary.incomeBeforeTax =
     profitLoss.summary.totalRevenue - profitLoss.summary.totalExpenses;
 
-  // Calculate tax
   const { taxAmount, effectiveRate } = await calculateTax(
     profitLoss.summary.incomeBeforeTax,
     userId,
@@ -167,12 +128,13 @@ async function generateProfitAndLoss(
 
   profitLoss.summary.incomeTaxExpense = taxAmount;
   profitLoss.summary.effectiveTaxRate = effectiveRate;
-  profitLoss.summary.netProfit = profitLoss.summary.incomeBeforeTax - taxAmount;
+  profitLoss.summary.netProfit =
+    profitLoss.summary.incomeBeforeTax - taxAmount;
 
   return profitLoss;
 }
 
-// Generate Cash Flow Statement
+// Cash Flow
 async function generateCashFlow(
   userId: string,
   startDate: Date,
@@ -184,11 +146,7 @@ async function generateCashFlow(
     year: startDate.getFullYear(),
     operatingActivities: {
       netIncome: 0,
-      adjustments: {
-        depreciation: 0,
-        amortization: 0,
-        other: 0,
-      },
+      adjustments: { depreciation: 0, amortization: 0, other: 0 },
       workingCapitalChanges: {
         accountsReceivable: 0,
         accountsPayable: 0,
@@ -210,14 +168,9 @@ async function generateCashFlow(
       ownerWithdrawals: 0,
       totalFinancingCashFlow: 0,
     },
-    summary: {
-      netCashFlow: 0,
-      beginningCash: 0,
-      endingCash: 0,
-    },
+    summary: { netCashFlow: 0, beginningCash: 0, endingCash: 0 },
   };
 
-  // Get all transactions for the period
   const transactions = await Transaction.aggregate([
     {
       $match: {
@@ -227,52 +180,36 @@ async function generateCashFlow(
     },
     {
       $group: {
-        _id: {
-          type: '$type',
-          category: '$category',
-        },
+        _id: { type: '$type', category: '$category' },
         total: { $sum: '$amount' },
       },
     },
   ]);
 
-  // Calculate net income (simplified - using P&L logic)
   let totalRevenue = 0;
   let totalExpenses = 0;
 
-  transactions.forEach((transaction) => {
-    if (transaction._id.type === 'Income') {
-      totalRevenue += transaction.total;
-    } else if (transaction._id.type === 'Expense') {
-      totalExpenses += transaction.total;
-    }
+  transactions.forEach((t) => {
+    if (t._id.type === 'Income') totalRevenue += t.total;
+    else if (t._id.type === 'Expense') totalExpenses += t.total;
   });
 
-  // Calculate income before tax
   const incomeBeforeTax = totalRevenue - totalExpenses;
-
-  // Calculate tax
   const { taxAmount } = await calculateTax(incomeBeforeTax, userId);
-
   cashFlow.operatingActivities.netIncome = incomeBeforeTax - taxAmount;
 
-  // Categorize cash flows based on transaction categories
-  transactions.forEach((transaction) => {
-    const category = transaction._id.category?.toLowerCase() || '';
-    const amount = transaction.total;
+  transactions.forEach((t) => {
+    const category = t._id.category?.toLowerCase() || '';
+    const amount = t.total;
 
-    // Operating activities (most revenue and operating expenses)
-    if (transaction._id.type === 'Income') {
-      // Income generally contributes to operating cash flow
+    if (t._id.type === 'Income') {
       cashFlow.operatingActivities.totalOperatingCashFlow += amount;
-    } else if (transaction._id.type === 'Expense') {
-      // Categorize expenses into different cash flow types
+    } else if (t._id.type === 'Expense') {
       if (
         category.includes('equipment') ||
         category.includes('asset') ||
         category.includes('capital')
       ) {
-        // Investing activities
         cashFlow.investingActivities.equipmentPurchases += amount;
         cashFlow.investingActivities.totalInvestingCashFlow -= amount;
       } else if (
@@ -280,7 +217,6 @@ async function generateCashFlow(
         category.includes('debt') ||
         category.includes('financing')
       ) {
-        // Financing activities
         if (category.includes('repayment') || category.includes('payment')) {
           cashFlow.financingActivities.loanRepayments += amount;
           cashFlow.financingActivities.totalFinancingCashFlow -= amount;
@@ -293,31 +229,27 @@ async function generateCashFlow(
         category.includes('dividend') ||
         category.includes('withdrawal')
       ) {
-        // Owner withdrawals
         cashFlow.financingActivities.ownerWithdrawals += amount;
         cashFlow.financingActivities.totalFinancingCashFlow -= amount;
       } else {
-        // Operating expenses
         cashFlow.operatingActivities.totalOperatingCashFlow -= amount;
       }
     }
   });
 
-  // Calculate summary
   cashFlow.summary.netCashFlow =
     cashFlow.operatingActivities.totalOperatingCashFlow +
     cashFlow.investingActivities.totalInvestingCashFlow +
     cashFlow.financingActivities.totalFinancingCashFlow;
 
-  // For beginning cash, we could look at previous period or use 0
-  cashFlow.summary.beginningCash = 0; // This could be enhanced to look at previous period
+  cashFlow.summary.beginningCash = 0;
   cashFlow.summary.endingCash =
     cashFlow.summary.beginningCash + cashFlow.summary.netCashFlow;
 
   return cashFlow;
 }
 
-// Generate Balance Sheet
+// Balance Sheet
 async function generateBalanceSheet(
   userId: string,
   startDate: Date,
@@ -356,14 +288,9 @@ async function generateBalanceSheet(
       },
       totalLiabilities: 0,
     },
-    equity: {
-      ownerEquity: 0,
-      retainedEarnings: 0,
-      totalEquity: 0,
-    },
+    equity: { ownerEquity: 0, retainedEarnings: 0, totalEquity: 0 },
   };
 
-  // Get all transactions up to the balance sheet date
   const transactions = await Transaction.aggregate([
     {
       $match: {
@@ -373,32 +300,27 @@ async function generateBalanceSheet(
     },
     {
       $group: {
-        _id: {
-          type: '$type',
-          category: '$category',
-        },
+        _id: { type: '$type', category: '$category' },
         total: { $sum: '$amount' },
       },
     },
   ]);
 
-  // Calculate retained earnings (cumulative net income)
   let totalRevenue = 0;
   let totalExpenses = 0;
   let cashBalance = 0;
 
-  transactions.forEach((transaction) => {
-    const category = transaction._id.category?.toLowerCase() || '';
-    const amount = transaction.total;
+  transactions.forEach((t) => {
+    const category = t._id.category?.toLowerCase() || '';
+    const amount = t.total;
 
-    if (transaction._id.type === 'Income') {
+    if (t._id.type === 'Income') {
       totalRevenue += amount;
       cashBalance += amount;
-    } else if (transaction._id.type === 'Expense') {
+    } else if (t._id.type === 'Expense') {
       totalExpenses += amount;
       cashBalance -= amount;
 
-      // Categorize expenses into balance sheet items
       if (
         category.includes('equipment') ||
         category.includes('asset') ||
@@ -417,34 +339,28 @@ async function generateBalanceSheet(
     }
   });
 
-  // Calculate net income and tax
   const incomeBeforeTax = totalRevenue - totalExpenses;
   const { taxAmount } = await calculateTax(incomeBeforeTax, userId);
   const netIncome = incomeBeforeTax - taxAmount;
 
-  // Set cash (simplified - actual cash balance would need more sophisticated tracking)
   balanceSheet.assets.currentAssets.cash = Math.max(0, cashBalance);
 
-  // Calculate totals for current assets
   balanceSheet.assets.currentAssets.totalCurrentAssets =
     balanceSheet.assets.currentAssets.cash +
     balanceSheet.assets.currentAssets.accountsReceivable +
     balanceSheet.assets.currentAssets.inventory +
     balanceSheet.assets.currentAssets.prepaidExpenses;
 
-  // Calculate fixed assets (simplified depreciation)
   balanceSheet.assets.fixedAssets.netFixedAssets =
     balanceSheet.assets.fixedAssets.equipment -
     balanceSheet.assets.fixedAssets.accumulatedDepreciation;
   balanceSheet.assets.fixedAssets.totalFixedAssets =
     balanceSheet.assets.fixedAssets.netFixedAssets;
 
-  // Total assets
   balanceSheet.assets.totalAssets =
     balanceSheet.assets.currentAssets.totalCurrentAssets +
     balanceSheet.assets.fixedAssets.totalFixedAssets;
 
-  // Calculate liability totals
   balanceSheet.liabilities.currentLiabilities.totalCurrentLiabilities =
     balanceSheet.liabilities.currentLiabilities.accountsPayable +
     balanceSheet.liabilities.currentLiabilities.shortTermDebt +
@@ -457,32 +373,28 @@ async function generateBalanceSheet(
     balanceSheet.liabilities.currentLiabilities.totalCurrentLiabilities +
     balanceSheet.liabilities.longTermLiabilities.totalLongTermLiabilities;
 
-  // Calculate equity
   balanceSheet.equity.retainedEarnings = netIncome;
   balanceSheet.equity.totalEquity =
     balanceSheet.equity.ownerEquity + balanceSheet.equity.retainedEarnings;
 
-  // Balance sheet must balance: Assets = Liabilities + Equity
-  // Adjust owner equity to balance if needed
-  const balanceDifference =
+  const diff =
     balanceSheet.assets.totalAssets -
     (balanceSheet.liabilities.totalLiabilities +
       balanceSheet.equity.totalEquity);
 
-  balanceSheet.equity.ownerEquity += balanceDifference;
+  balanceSheet.equity.ownerEquity += diff;
   balanceSheet.equity.totalEquity =
     balanceSheet.equity.ownerEquity + balanceSheet.equity.retainedEarnings;
 
   return balanceSheet;
 }
 
-// Export the controller with standalone functions
+// Export controller
 export const reportsController = {
-  generateProfitAndLoss, // Export the standalone function
-  generateCashFlow, // Export the standalone function
-  generateBalanceSheet, // Export the standalone function
+  generateProfitAndLoss,
+  generateCashFlow,
+  generateBalanceSheet,
 
-  // HTTP endpoint for P&L
   async getProfitAndLoss(req: any, res: any) {
     try {
       const userId = req.user?.userId;
@@ -528,18 +440,17 @@ export const reportsController = {
         report: profitLoss,
         metadata: {
           generatedAt: new Date(),
-          startDate: start,
-          endDate: end,
-          duration: duration || 'custom',
+            startDate: start,
+            endDate: end,
+            duration: duration || 'custom',
         },
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error generating P&L report:', e);
       res.status(500).json({ error: e.message });
     }
   },
 
-  // HTTP endpoint for Cash Flow
   async getCashFlow(req: any, res: any) {
     try {
       const userId = req.user?.userId;
@@ -590,13 +501,12 @@ export const reportsController = {
           duration: duration || 'custom',
         },
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error generating Cash Flow report:', e);
       res.status(500).json({ error: e.message });
     }
   },
 
-  // HTTP endpoint for Balance Sheet
   async getBalanceSheet(req: any, res: any) {
     try {
       const userId = req.user?.userId;
@@ -629,7 +539,7 @@ export const reportsController = {
           default:
             const year = parseInt(req.query.year) || new Date().getFullYear();
             start = new Date(year, 0, 1);
-            end = new Date(year, 11, 31); // End of year for balance sheet
+            end = new Date(year, 11, 31);
         }
       } else if (startDate && endDate) {
         start = new Date(startDate);
@@ -637,7 +547,7 @@ export const reportsController = {
       } else {
         const year = parseInt(req.query.year) || new Date().getFullYear();
         start = new Date(year, 0, 1);
-        end = new Date(year, 11, 31); // End of year for balance sheet
+        end = new Date(year, 11, 31);
       }
 
       const balanceSheet = await generateBalanceSheet(userId, start, end);
@@ -651,9 +561,152 @@ export const reportsController = {
           duration: duration || 'custom',
         },
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error generating Balance Sheet report:', e);
       res.status(500).json({ error: e.message });
+    }
+  },
+
+  async getTransactionsCsv(req: any, res: any) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { startDate, endDate } = req.params;
+      if (!startDate || !endDate) {
+        return res
+          .status(400)
+          .json({ error: 'startDate and endDate params are required (YYYY-MM-DD)' });
+      }
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
+
+      end.setHours(23, 59, 59, 999);
+
+      const transactions = await Transaction.find({
+        createdBy: new mongoose.Types.ObjectId(userId),
+        date: { $gte: start, $lte: end },
+      })
+        .sort({ date: 1 })
+        .lean();
+
+      const headers = [
+        'Name',
+        'Date',
+        'Category',
+        'Amount',
+        'Account',
+      ];
+
+      // Helper to safely derive a human-readable account name
+      const resolveAccountName = (t: any): string => {
+        if (typeof t.accountName === 'string' && t.accountName.trim()) return t.accountName.trim();
+        if (t.meta?.accountName) return String(t.meta.accountName);
+
+        // t.account might be:
+        // 1. a plain string (possibly JSON)
+        // 2. an object containing Plaid account data
+        if (t.account) {
+          if (typeof t.account === 'string') {
+            // Try to parse JSON string
+            try {
+              const parsed = JSON.parse(t.account);
+              if (parsed && typeof parsed === 'object') {
+                return (
+                  parsed.name ||
+                  parsed.official_name ||
+                  parsed.mask ||
+                  parsed.account_id ||
+                  t.account
+                );
+              }
+            } catch {
+              // Not JSON, just return as-is
+              return t.account;
+            }
+            return t.account;
+          }
+          if (typeof t.account === 'object') {
+            return (
+              t.account.name ||
+              t.account.official_name ||
+              t.account.mask ||
+              t.account.account_id ||
+              ''
+            );
+          }
+        }
+
+        if (t.accountId) return String(t.accountId);
+        return '';
+      };
+
+      const rows = transactions.map((t: any) => {
+        const name = t.name || t.description || '';
+        const date = t.date
+          ? new Date(t.date).toISOString().split('T')[0]
+          : '';
+        const category = t.category || 'Uncategorized';
+        const amount =
+          typeof t.amount === 'number' ? t.amount.toFixed(2) : '';
+        const account = resolveAccountName(t);
+
+        return [name, date, category, amount, account];
+      });
+
+      const escape = (val: string) => {
+        if (val == null) return '';
+        const needsQuotes = /[",\n]/.test(val);
+        const escaped = String(val).replace(/"/g, '""');
+        return needsQuotes ? `"${escaped}"` : escaped;
+      };
+
+      const csv = [
+        headers.map(escape).join(','),
+        ...rows.map((r) => r.map(escape).join(',')),
+      ].join('\n');
+
+      if (req.query.format === 'json') {
+        return res.json({
+          report: {
+            type: 'transactions_csv',
+            headers,
+            rows,
+            count: rows.length,
+            totalAmount: transactions.reduce(
+              (sum: number, t: any) =>
+                typeof t.amount === 'number' ? sum + t.amount : sum,
+              0,
+            ),
+          },
+          metadata: {
+            generatedAt: new Date(),
+            startDate: start,
+            endDate: end,
+            duration: 'custom',
+          },
+        });
+      }
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=transactions_${startDate}_${endDate}.csv`,
+      );
+      res.send(csv);
+    } catch (e: any) {
+      console.error('Error generating transactions CSV report:', e);
+      res
+        .status(500)
+        .json({ error: 'Failed to generate transactions CSV report' });
     }
   },
 };

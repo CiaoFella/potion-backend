@@ -282,6 +282,88 @@ router.get("/balance-sheet", auth, reportsController.getBalanceSheet);
 
 /**
  * @swagger
+ * /api/reports/transactions-csv/{startDate}/{endDate}:
+ *   get:
+ *     summary: Export all transactions in a date range as CSV (or JSON with ?format=json)
+ *     tags: [Reports]
+ *     parameters:
+ *       - in: path
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date (YYYY-MM-DD)
+ *       - in: path
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date (YYYY-MM-DD)
+ *       - in: query
+ *         name: format
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [json]
+ *         description: Return JSON instead of CSV when set to 'json'
+ *     responses:
+ *       200:
+ *         description: Transactions CSV or JSON list
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *               example: "Transaction name,Transaction date,Transaction category,Transaction amount,Transaction Account"
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 report:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       example: transactions_csv
+ *                     headers:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     rows:
+ *                       type: array
+ *                       items:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                     count:
+ *                       type: integer
+ *                     totalAmount:
+ *                       type: number
+ *                 metadata:
+ *                   type: object
+ *                   properties:
+ *                     generatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                     startDate:
+ *                       type: string
+ *                       format: date-time
+ *                     endDate:
+ *                       type: string
+ *                       format: date-time
+ *                     duration:
+ *                       type: string
+ *                       example: custom
+ *       400:
+ *         description: Invalid parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/transactions/:startDate/:endDate", auth, reportsController.getTransactionsCsv);
+
+/**
+ * @swagger
  * /api/reports/balance-sheet:
  *   get:
  *     summary: Generate a Balance Sheet
