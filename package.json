@@ -72,6 +72,8 @@
     "swagger-ui-express": "^5.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "winston": "^3.13.0",
+    "winston-mongodb": "^5.1.1"
   }
 }

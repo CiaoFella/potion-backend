@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { myEmitter } from '../services/eventEmitter';
 import fetch from 'node-fetch';
 import { getToken } from '../cron/getCRMAction';
+import { PerplexityService } from '../services/perplexityService';
 
 const TransactionSchema = new mongoose.Schema(
   {
@@ -93,61 +94,34 @@ export const predictCategory = async (doc) => {
       return;
     }
 
-    const token = await getToken(doc.createdBy.toString());
-
-    if (!token) {
-      return;
-    }
-
-    // Use AI service for transaction categorization with Perplexity
-    const aiServiceUrl =
-      process.env.AI_SERVICE_URL ||
-      (process.env.NODE_ENV === 'production'
-        ? 'https://ai.potionapp.com'
-        : 'http://localhost:5001');
-
-    const url = `${aiServiceUrl}/api/transaction/categorize/${doc._id.toString()}?type=category`;
-
+    // Build the request payload for Perplexity
     const requestBody = {
+      transactionId: doc._id?.toString() || '', // Ensure transactionId is a string
+      type: doc.type || 'Expense', // Add the required 'type' property
       amount: doc.amount,
       description: doc.description || '',
       merchant: doc.counterparty || '',
-      date: doc.date.toISOString(),
+      date: doc.date?.toISOString?.() || new Date().toISOString(),
       transactionType: doc.type || 'Expense',
     };
 
-    const response = await fetch(url, {
-      method: 'POST',
-      body: JSON.stringify(requestBody),
-      headers: {
-        'Content-Type': 'application/json',
-        accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const perplexityService = new PerplexityService();
 
-    if (!response.ok) {
-      throw new Error(`AI service responded with status: ${response.status}`);
-    }
+    // Call your Perplexity integration (adjust method name if different)
+    // Expected response shape: { categories: [{ label, confidence }, ...], description?: string }
+    const result = await perplexityService.categorizeTransaction(requestBody);
 
-    const result = await response.json();
-
-    if (!result.success || !result.data) {
-      throw new Error('Invalid response from AI service');
-    }
-
-    const prediction = result.data;
+    const prediction = result; // use result directly as it matches TransactionCategorizationResponse
 
     // Find the category with highest confidence
-    const bestCategory = prediction.categories?.reduce((prev, current) =>
+    const bestCategory = prediction?.categories?.reduce((prev, current) =>
       prev.confidence > current.confidence ? prev : current,
     );
 
-    // Update category if confidence is high enough (lowered threshold for Perplexity)
     if (bestCategory && bestCategory.confidence >= 0.6) {
       await Transaction.findByIdAndUpdate(doc._id.toString(), {
         category: bestCategory.label,
-        aiDescription: prediction.description,
+        aiDescription: prediction.description ?? null,
       });
     } else {
       await Transaction.findByIdAndUpdate(doc._id.toString(), {
@@ -156,16 +130,16 @@ export const predictCategory = async (doc) => {
         action: 'CategoryAction',
       });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error predicting category with Perplexity:', {
       transactionId: doc._id?.toString(),
-      error: error.message,
+      error: error?.message || String(error),
     });
 
     try {
       await Transaction.findByIdAndUpdate(doc._id.toString(), {
         category: null, // Clear the "AI Processing..." state
-        aiDescription: error.message,
+        aiDescription: error?.message || 'AI categorization failed',
         action: 'CategoryAction',
       });
     } catch (updateError) {
