@@ -669,7 +669,6 @@ export class PerplexityService {
     request: TransactionCategorizationRequest
   ): Promise<TransactionCategorizationResponse> {
     try {
-      // Prepare sanitized logging data
       const logData = {
         service: "potion-ai",
         transactionId: request.transactionId,
@@ -682,9 +681,6 @@ export class PerplexityService {
         amount: request.amount,
       };
 
-      logger.info("Starting transaction categorization", logData);
-
-      // Tokenize sensitive data before sending to external API
       const tokenizedDescription = dataEncryptionService.tokenizeSensitiveData(
         request.description || ""
       );
@@ -698,21 +694,7 @@ export class PerplexityService {
         merchant: tokenizedMerchant.tokenizedText,
       };
 
-      // Build categorization prompt
       const prompt = this.buildCategorizationPrompt(secureRequest);
-
-      // Log request details
-      this.logRequest("categorize", {
-        service: "potion-ai",
-        model: this.model,
-        amount: request.amount,
-        type: request.type,
-        date: request.date,
-        merchant: this.truncateForLogging(logData.merchant),
-        description: this.truncateForLogging(logData.description),
-      });
-
-      // Make API request to Perplexity
       const response = await axios.post(
         this.baseUrl,
         {
@@ -739,7 +721,6 @@ export class PerplexityService {
         }
       );
 
-      // Process response
       const responseContent = response.data.choices[0]?.message?.content;
 
       this.logResponse("categorize", {
@@ -757,13 +738,11 @@ export class PerplexityService {
         throw new Error("No response content from Perplexity API");
       }
 
-      // Parse and validate response
       const categorization = this.parseCategorizationResponse(
         responseContent,
         tokenizedDescription
       );
 
-      // Clean and process suggestions
       categorization.categories = this.cleanSuggestions(
         categorization.categories,
         undefined,
@@ -783,7 +762,6 @@ export class PerplexityService {
         );
       }
 
-      // Validate final response structure
       if (
         !categorization.categories ||
         !Array.isArray(categorization.categories)
