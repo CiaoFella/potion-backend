@@ -9,7 +9,7 @@ const ReportSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['ProfitAndLoss', 'BalanceSheet', 'CashFlow'],
+      enum: ['ProfitAndLoss', 'BalanceSheet', 'CashFlow', 'ProjectProfitability'],
       required: true,
     },
     status: {
@@ -61,6 +61,10 @@ const ReportSchema = new mongoose.Schema(
     lastAccessed: {
       type: Date,
       default: Date.now,
+    },
+    projectIds: {
+      type: [String],
+      default: [],
     },
   },
   {
