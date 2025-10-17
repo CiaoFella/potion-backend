@@ -145,7 +145,7 @@ async function generateProjectProfitability(
   projectIds?: string[],
 ) {
   const profitLoss = {
-    reportName: 'Profit & Loss Statement',
+    reportName: 'Project Profitability Report',
     period: `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`,
     year: startDate.getFullYear(),
     revenue: { byCategory: {} as Record<string, number>, totalRevenue: 0 },
