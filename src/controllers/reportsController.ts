@@ -138,6 +138,105 @@ async function generateProfitAndLoss(
   return profitLoss;
 }
 
+async function generateProjectProfitability(
+  userId: string,
+  startDate: Date,
+  endDate: Date,
+  projectIds?: string[],
+) {
+  const profitLoss = {
+    reportName: 'Profit & Loss Statement',
+    period: `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`,
+    year: startDate.getFullYear(),
+    revenue: { byCategory: {} as Record<string, number>, totalRevenue: 0 },
+    expenses: { byCategory: {} as Record<string, number>, totalExpenses: 0 },
+    summary: {
+      totalRevenue: 0,
+      totalExpenses: 0,
+      incomeBeforeTax: 0,
+      incomeTaxExpense: 0,
+      effectiveTaxRate: 0,
+      netProfit: 0,
+    },
+  };
+
+  const ids = Array.isArray(projectIds) && projectIds.length
+    ? projectIds.map((id: string) => new mongoose.Types.ObjectId(id))
+    : [];
+
+  const projectMatch = {
+    $and: [
+      { project: { $exists: true } },
+      { project: { $ne: null } },
+      ...(ids.length ? [{ project: { $in: ids } }] : []),
+    ],
+  };
+
+  const categories = await Transaction.aggregate([
+    {
+      $match: {
+        createdBy: new mongoose.Types.ObjectId(userId),
+        date: { $gte: startDate, $lt: endDate },
+        ...projectMatch,
+      },
+    },
+    { $group: { _id: { type: '$type', category: '$category' } } },
+  ]);
+
+  categories.forEach((cat) => {
+    const key = cat._id.category || 'Uncategorized';
+    if (cat._id.type === 'Income') {
+      profitLoss.revenue.byCategory[key] = 0;
+    } else if (cat._id.type === 'Expense') {
+      profitLoss.expenses.byCategory[key] = 0;
+    }
+  });
+
+  const transactions = await Transaction.aggregate([
+    {
+      $match: {
+        createdBy: new mongoose.Types.ObjectId(userId),
+        date: { $gte: startDate, $lt: endDate },
+        ...projectMatch,
+      },
+    },
+    {
+      $group: {
+        _id: { type: '$type', category: '$category' },
+        total: { $sum: '$amount' },
+      },
+    },
+  ]);
+
+  transactions.forEach((t) => {
+    const cat = t._id.category || 'Uncategorized';
+    if (t._id.type === 'Income') {
+      profitLoss.revenue.byCategory[cat] = t.total;
+      profitLoss.revenue.totalRevenue += t.total;
+      profitLoss.summary.totalRevenue += t.total;
+    } else if (t._id.type === 'Expense') {
+      profitLoss.expenses.byCategory[cat] = t.total;
+      profitLoss.expenses.totalExpenses += t.total;
+      profitLoss.summary.totalExpenses += t.total;
+    }
+  });
+
+  profitLoss.summary.incomeBeforeTax =
+    profitLoss.summary.totalRevenue - profitLoss.summary.totalExpenses;
+
+  const { taxAmount, effectiveRate } = await calculateTax(
+    profitLoss.summary.incomeBeforeTax,
+    userId,
+  );
+
+  profitLoss.summary.incomeTaxExpense = taxAmount;
+  profitLoss.summary.effectiveTaxRate = effectiveRate;
+  profitLoss.summary.netProfit =
+    profitLoss.summary.incomeBeforeTax - taxAmount;
+
+  return profitLoss;
+}
+
 // Cash Flow
 async function generateCashFlow(
   userId: string,
@@ -399,6 +498,7 @@ export const reportsController = {
   generateProfitAndLoss,
   generateCashFlow,
   generateBalanceSheet,
+  generateProjectProfitability,
 
   async getProfitAndLoss(req: any, res: any) {
     try {
@@ -445,9 +545,9 @@ export const reportsController = {
         report: profitLoss,
         metadata: {
           generatedAt: new Date(),
-            startDate: start,
-            endDate: end,
-            duration: duration || 'custom',
+          startDate: start,
+          endDate: end,
+          duration: duration || 'custom',
         },
       });
     } catch (e: any) {

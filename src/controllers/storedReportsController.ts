@@ -47,7 +47,7 @@ async function generateReport(reportId: string) {
         );
         break;
       case 'ProjectProfitability':
-        reportData = await (reportsController.generateProfitAndLoss as any)(
+        reportData = await (reportsController.generateProjectProfitability as any)(
           report.userId.toString(),
           report.period.startDate,
           report.period.endDate,
