@@ -50,7 +50,6 @@ import unifiedAuthRoutes from './routes/unifiedAuthRoutes';
 import externalProfileRoutes from './routes/externalProfileRoutes';
 import {
   setupAccountantAccount,
-  accountantLogin,
 } from './controllers/accountantController';
 import { subcontractorController } from './controllers/subcontractorController';
 import { handleStripeWebhook } from './controllers/webhookController';
@@ -160,7 +159,7 @@ app.use('/api/admin', adminRoutes);
 // LEGACY: Old external user auth routes - DEPRECATED in favor of unified auth system
 // These routes are kept for backward compatibility during transition
 app.post('/api/accountant/setup-account', setupAccountantAccount); // DEPRECATED: Use /api/unified-auth/setup-password/:token
-app.post('/api/accountant/login', accountantLogin); // DEPRECATED: Use /api/unified-auth/login
+app.post('/api/accountant/login'); // DEPRECATED: Use /api/unified-auth/login
 app.post(
   '/api/subcontractor/login',
   subcontractorController.subcontractorLogin, // DEPRECATED: Use /api/unified-auth/login
