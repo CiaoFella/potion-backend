@@ -54,6 +54,7 @@ async function generateProfitAndLoss(
   userId: string,
   startDate: Date,
   endDate: Date,
+  projectIds?: string[],
 ) {
   const profitLoss = {
     reportName: 'Profit & Loss Statement',
@@ -90,11 +91,14 @@ async function generateProfitAndLoss(
     }
   });
 
+
   const transactions = await Transaction.aggregate([
     {
       $match: {
         createdBy: new mongoose.Types.ObjectId(userId),
         date: { $gte: startDate, $lt: endDate },
+        ...(Array.isArray(projectIds) && projectIds.length ? { project: { $in: projectIds.map((id: string) => new mongoose.Types.ObjectId(id)) } } : {}),
+
       },
     },
     {
@@ -254,6 +258,7 @@ async function generateBalanceSheet(
   userId: string,
   startDate: Date,
   endDate: Date,
+  projectIds?: string[]
 ) {
   const balanceSheet = {
     reportName: 'Balance Sheet',
